@@ -16,10 +16,6 @@ import lock from './img/lock.svg'
 import { ReactComponent as Upload } from './img/file-upload-solid.svg'
 import { ReactComponent as Remove } from './img/file-remove-solid.svg'
 
-interface GlyphProps {
-  svg: string
-}
-
 const Footer: FunctionComponent = (props) =>
   <React.Fragment>
     <div style={{ height: '100%' }} />
@@ -27,6 +23,10 @@ const Footer: FunctionComponent = (props) =>
       { props.children }
     </footer>
   </React.Fragment>
+
+interface GlyphProps {
+  svg: string
+}
 
 const Glyph = (props: GlyphProps) =>
   <div className="icon baseline">
@@ -96,6 +96,3 @@ const App = () => {
 }
 
 export default App
-            /* <Button color='primary' size='lg' block><img src={upload} alt='' /></Button> */
-            /* <Button color='primary' size='lg' block><img src={remove} alt='' /></Button> */
-      /* <div style={{ flex: '1 1 auto' }} /> */
