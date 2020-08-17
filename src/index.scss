@@ -1,0 +1,85 @@
+$body-bg: #ddeeee;
+$footer-bg: #dddddd;
+$footer-fg: #999999;
+$footer-link: #444444;
+$footer-height: 3rem;
+
+@import "node_modules/bootstrap/scss/bootstrap";
+
+// // Core Bootstrap
+// @import "node_modules/bootstrap/scss/functions";
+// @import "node_modules/bootstrap/scss/variables";
+// @import "node_modules/bootstrap/scss/mixins";
+// @import "node_modules/bootstrap/scss/root";
+// @import "node_modules/bootstrap/scss/variables";
+// @import "node_modules/bootstrap/scss/reboot";
+// @import "node_modules/bootstrap/scss/utilities";
+
+// // Bootstrap elements
+// @import "node_modules/bootstrap/scss/buttons";
+// @import "node_modules/bootstrap/scss/forms";
+// @import "node_modules/bootstrap/scss/navbar";
+// @import "node_modules/bootstrap/scss/grid";
+
+html, body, #root {
+  height: 100%;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+.footer {
+  width: 100%;
+  padding: $footer-height / 3;
+  background-color: $footer-bg;
+  color: $footer-fg;
+  font-size: $footer-height / 4;
+}
+
+.footer > a {
+  color: $footer-link;
+}
+
+.footer > a:hover{
+  color: $footer-link;
+}
+
+.row {
+  margin: 0.5rem;
+}
+
+#lock {
+  height: 2rem;
+  width: 2rem;
+}
+
+.icon {
+  display: inline-flex;
+  align-self: center;
+}
+
+.icon svg, .icon img {
+  height: 1em;
+  width: 1em;
+  fill: currentColor;
+  filter: invert(1);
+}
+
+.icon.baseline svg, .icon img {
+  top: .125em;
+  position: relative;
+}
+
+.SvgButton {
+  width: 1.5em;
+}
+
+.SvgButton .primary {
+  color: $primary;
+}
+
+.SvgButton .secondary {
+  color: $secondary;
+}
