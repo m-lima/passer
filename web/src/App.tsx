@@ -14,6 +14,19 @@ import lock from './img/lock.svg'
 import Footer from './Footer'
 import * as passer from 'passer'
 
+const generateRandom = (size: number) => {
+  let array = new Uint8Array(size)
+  window.crypto.getRandomValues(array)
+  return array
+}
+
+const encrypt = (secret: string) => {
+  const key = generateRandom(32)
+  const nonce = generateRandom(12)
+  const cipher = passer.encrypt(key, nonce, secret)
+  console.log(cipher)
+}
+
 const App = () => {
 
   const [clearModal, setClearModal] = useState(false)
@@ -51,7 +64,7 @@ const App = () => {
               value={secretText}
               style={{ height: '10rem' }}
             />
-            <Button color='success' size='lg' block onClick={() => passer.encrypt('12345678901234567890123456789012', '123456789012', secretText)}>Encrypt</Button>
+            <Button color='success' size='lg' block onClick={() => encrypt(secretText)}>Encrypt</Button>
             <Button color='secondary' size='lg' block onClick={clearToggle}>Clear</Button>
       </Container>
       <Footer>
