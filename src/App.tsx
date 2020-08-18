@@ -12,7 +12,7 @@ import {
 
 import lock from './img/lock.svg'
 import Footer from './Footer'
-import * as wasm from 'passer'
+import * as passer from 'passer'
 
 const App = () => {
 
@@ -51,7 +51,7 @@ const App = () => {
               value={secretText}
               style={{ height: '10rem' }}
             />
-            <Button color='success' size='lg' block onClick={() => wasm.encrypt(secretText)}>Encrypt</Button>
+            <Button color='success' size='lg' block onClick={() => passer.encrypt(secretText)}>Encrypt</Button>
             <Button color='secondary' size='lg' block onClick={clearToggle}>Clear</Button>
       </Container>
       <Footer>
