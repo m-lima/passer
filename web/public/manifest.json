@@ -1,6 +1,6 @@
 {
   "short_name": "Passer",
-  "name": "TODO: {encrypted} passing along",
+  "name": "AES-GCM passing along",
   "icons": [
     {
       "src": "favicon.ico",
