@@ -51,7 +51,7 @@ const App = () => {
               value={secretText}
               style={{ height: '10rem' }}
             />
-            <Button color='success' size='lg' block onClick={() => passer.encrypt(secretText)}>Encrypt</Button>
+            <Button color='success' size='lg' block onClick={() => passer.encrypt('12345678901234567890123456789012', '123456789012', secretText)}>Encrypt</Button>
             <Button color='secondary' size='lg' block onClick={clearToggle}>Clear</Button>
       </Container>
       <Footer>

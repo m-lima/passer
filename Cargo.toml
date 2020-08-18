@@ -8,4 +8,6 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+aes-gcm = "0.6"
+console_error_panic_hook = "0.1"
 wasm-bindgen = "0.2"
