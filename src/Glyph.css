@@ -1,0 +1,16 @@
+.Glyph {
+  display: inline-flex;
+  align-self: center;
+}
+
+.Glyph svg .Glyph img {
+  height: 1em;
+  width: 1em;
+  fill: currentColor;
+  filter: invert(1);
+}
+
+.Glyph.baseline svg, .Glyph img {
+  top: .125em;
+  position: relative;
+}

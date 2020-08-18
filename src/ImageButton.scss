@@ -1,0 +1,10 @@
+.ImageButton {
+  cursor: pointer;
+  width: 1.5em;
+}
+
+@each $color, $value in $theme-colors {
+  .ImageButton-#{$color} {
+    color: theme-color($color);
+  }
+}
