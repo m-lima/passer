@@ -12,12 +12,14 @@ import {
 
 import lock from './img/lock.svg'
 import Footer from './Footer'
+import * as wasm from 'passer'
 
 const App = () => {
 
-  const [clearModal, clearSetModal] = useState(false)
+  const [clearModal, setClearModal] = useState(false)
+  const [secretText, setSecretText] = useState('')
 
-  const clearToggle = () => clearSetModal(!clearModal)
+  const clearToggle = () => setClearModal(!clearModal)
 
   return (
     <React.Fragment>
@@ -38,14 +40,18 @@ const App = () => {
       </Modal>
       <Container role='main'>
             <Input
+              className='mt-2 mb-2'
               type='textarea'
               id='secret'
               name='secret'
               placeholder={'Type message or drag in files to encrypt locally on your browser'}
               autoComplete='off'
+              autoFocus={true}
+              onChange={e => setSecretText(e.target.value)}
+              value={secretText}
               style={{ height: '10rem' }}
             />
-                <Button color='success' size='lg' block>Encrypt</Button>
+            <Button color='success' size='lg' block onClick={() => wasm.encrypt(secretText)}>Encrypt</Button>
             <Button color='secondary' size='lg' block onClick={clearToggle}>Clear</Button>
       </Container>
       <Footer>
