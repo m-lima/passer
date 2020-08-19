@@ -21,10 +21,9 @@ const generateRandom = (size: number) => {
 }
 
 const encrypt = (secret: string) => {
-  const key = generateRandom(32)
-  const nonce = generateRandom(12)
-  const cipher = passer.encrypt(key, nonce, secret)
-  console.log(cipher)
+  const cipher = passer.encrypt(secret)
+  console.log(`Key: ${cipher.key_raw()}`)
+  console.log(`Secret: ${cipher.payload()}`)
 }
 
 const App = () => {
