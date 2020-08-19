@@ -55,12 +55,12 @@ impl Secret {
 }
 
 #[wasm_bindgen]
-pub fn encrypt(secret: &str) -> Result<Secret, JsValue> {
+pub fn encrypt(payload: &[u8]) -> Result<Secret, JsValue> {
     // console_error_panic_hook::set_once();
     use aes_gcm::aead::{generic_array::GenericArray, Aead, NewAead};
     use rand::Rng;
 
-    if secret.is_empty() {
+    if payload.is_empty() {
         return Err(Error::NothingToProcess.into());
     }
 
@@ -72,7 +72,7 @@ pub fn encrypt(secret: &str) -> Result<Secret, JsValue> {
 
     let nonce = GenericArray::from_slice(&nonce_bytes);
 
-    if let Ok(cipher_text) = cipher.encrypt(nonce, secret.as_bytes()) {
+    if let Ok(cipher_text) = cipher.encrypt(nonce, payload) {
         Ok(Secret::new_inner(
             [&key_bytes[..], &nonce_bytes[..]].concat(),
             cipher_text,
@@ -80,6 +80,11 @@ pub fn encrypt(secret: &str) -> Result<Secret, JsValue> {
     } else {
         Err(Error::FailedToProcess.into())
     }
+}
+
+#[wasm_bindgen]
+pub fn encrypt_string(payload: &str) -> Result<Secret, JsValue> {
+    encrypt(payload.as_bytes())
 }
 
 #[wasm_bindgen]
