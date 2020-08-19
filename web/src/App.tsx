@@ -16,7 +16,7 @@ import * as passer from 'passer'
 
 const encrypt = (secret: string) => {
   const cipher = passer.encrypt(secret)
-  console.log(`Key: ${new TextDecoder("utf-8").decode(cipher.key())}`)
+  console.log(`Key: ${cipher.key()}`)
   console.log(`Secret: ${cipher.payload()}`)
 }
 

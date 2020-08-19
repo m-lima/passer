@@ -4,7 +4,6 @@ pub enum Error {
     NothingToProcess,
     FailedToProcess,
     InvalidKey,
-    InvalidNonce,
     FailedToParseKey,
 }
 
@@ -20,7 +19,6 @@ impl std::convert::Into<JsValue> for Error {
             Self::NothingToProcess => JsValue::from("NOTHING_TO_PROCESS"),
             Self::FailedToProcess => JsValue::from("FAILED_TO_PROCESS"),
             Self::InvalidKey => JsValue::from("INVALID_KEY"),
-            Self::InvalidNonce => JsValue::from("INVALID_NONCE"),
             Self::FailedToParseKey => JsValue::from("FAILED_TO_PARSE_KEY"),
         }
     }
@@ -47,12 +45,8 @@ impl Secret {
         Self { key, payload }
     }
 
-    pub fn key(&self) -> Result<js_sys::Uint8Array, JsValue> {
-        unsafe {
-            Ok(js_sys::Uint8Array::view(
-                base64::encode(&self.key).as_bytes(),
-            ))
-        }
+    pub fn key(&self) -> Result<js_sys::JsString, JsValue> {
+        Ok(base64::encode(&self.key).into())
     }
 
     pub fn payload(&self) -> js_sys::Uint8Array {
@@ -62,7 +56,7 @@ impl Secret {
 
 #[wasm_bindgen]
 pub fn encrypt(secret: &str) -> Result<Secret, JsValue> {
-    console_error_panic_hook::set_once();
+    // console_error_panic_hook::set_once();
     use aes_gcm::aead::{generic_array::GenericArray, Aead, NewAead};
     use rand::Rng;
 
