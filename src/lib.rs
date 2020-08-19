@@ -1,34 +1,5 @@
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
-pub struct Secret {
-    key: js_sys::Uint8Array,
-    payload: js_sys::Uint8Array,
-}
-
-#[wasm_bindgen]
-impl Secret {
-    #[wasm_bindgen(constructor)]
-    pub fn new(key: &[u8], payload: &[u8]) -> Self {
-        unsafe {
-            Self {
-                key: js_sys::Uint8Array::view(key),
-                payload: js_sys::Uint8Array::view(payload),
-            }
-        }
-    }
-
-    pub fn key_raw(&self) -> js_sys::Uint8Array {
-        self.key.clone()
-    }
-
-    // pub fn key_decoded(&self) -> js_sys::Uint8Array {}
-
-    pub fn payload(&self) -> js_sys::Uint8Array {
-        self.payload.clone()
-    }
-}
-
 pub enum Error {
     NothingToProcess,
     FailedToProcess,
@@ -56,6 +27,40 @@ impl std::convert::Into<JsValue> for Error {
 }
 
 #[wasm_bindgen]
+pub struct Secret {
+    key: Vec<u8>,
+    payload: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl Secret {
+    #[wasm_bindgen(constructor)]
+    pub fn new(key: &str, payload: &[u8]) -> Result<Secret, JsValue> {
+        Ok(Self {
+            key: base64::decode(key.as_bytes())
+                .map_err(|_| Error::FailedToParseKey.into_js_value())?,
+            payload: Vec::from(payload),
+        })
+    }
+
+    fn new_inner(key: Vec<u8>, payload: Vec<u8>) -> Self {
+        Self { key, payload }
+    }
+
+    pub fn key(&self) -> Result<js_sys::Uint8Array, JsValue> {
+        unsafe {
+            Ok(js_sys::Uint8Array::view(
+                base64::encode(&self.key).as_bytes(),
+            ))
+        }
+    }
+
+    pub fn payload(&self) -> js_sys::Uint8Array {
+        unsafe { js_sys::Uint8Array::view(&self.payload) }
+    }
+}
+
+#[wasm_bindgen]
 pub fn encrypt(secret: &str) -> Result<Secret, JsValue> {
     console_error_panic_hook::set_once();
     use aes_gcm::aead::{generic_array::GenericArray, Aead, NewAead};
@@ -73,10 +78,11 @@ pub fn encrypt(secret: &str) -> Result<Secret, JsValue> {
 
     let nonce = GenericArray::from_slice(&nonce_bytes);
 
-    let key64 = base64::encode([&key_bytes[..], &nonce_bytes[..]].concat());
-
     if let Ok(cipher_text) = cipher.encrypt(nonce, secret.as_bytes()) {
-        Ok(Secret::new(key64.as_bytes(), &cipher_text))
+        Ok(Secret::new_inner(
+            [&key_bytes[..], &nonce_bytes[..]].concat(),
+            cipher_text,
+        ))
     } else {
         Err(Error::FailedToProcess.into())
     }

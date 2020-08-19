@@ -14,15 +14,9 @@ import lock from './img/lock.svg'
 import Footer from './Footer'
 import * as passer from 'passer'
 
-const generateRandom = (size: number) => {
-  let array = new Uint8Array(size)
-  window.crypto.getRandomValues(array)
-  return array
-}
-
 const encrypt = (secret: string) => {
   const cipher = passer.encrypt(secret)
-  console.log(`Key: ${cipher.key_raw()}`)
+  console.log(`Key: ${new TextDecoder("utf-8").decode(cipher.key())}`)
   console.log(`Secret: ${cipher.payload()}`)
 }
 
