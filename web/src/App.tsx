@@ -47,7 +47,7 @@ const App = () => {
     fileRejections,
   } = useDropzone({
     minSize: 1,
-    maxSize: 1024 * 1024 * 100,
+    maxSize: 1024 * 1024 * 20,
     onDrop,
   })
 
@@ -70,25 +70,25 @@ const App = () => {
       </Modal>
       <div {...getRootProps()} >
         <Container role='main'>
-              <Input
-                className='mt-2 mb-2'
-                type='textarea'
-                id='secret'
-                name='secret'
-                placeholder={'Type message or drag in files to encrypt locally on your browser'}
-                autoComplete='off'
-                autoFocus={true}
-                onChange={e => setSecretText(e.target.value)}
-                value={secretText}
-                style={{ height: '10rem' }}
-              />
-              <input {...getInputProps()} />
-              <Button color='success' size='lg' block onClick={() => encrypt(secretText)}>Encrypt</Button>
-              <Button color='secondary' size='lg' block onClick={clearToggle}>Clear</Button>
+            <input {...getInputProps()} />
+            <Input
+              className='mt-2 mb-2'
+              type='textarea'
+              id='secret'
+              name='secret'
+              placeholder={'Type message or drag in files to encrypt locally on your browser'}
+              autoComplete='off'
+              autoFocus={true}
+              onChange={e => setSecretText(e.target.value)}
+              value={secretText}
+              style={{ height: '10rem' }}
+            />
+            <Button color='success' size='lg' block onClick={() => encrypt(secretText)}>Encrypt</Button>
+            <Button color='secondary' size='lg' block onClick={clearToggle}>Clear</Button>
         </Container>
       </div>
       <Footer>
-        Copyright © {new Date().getFullYear()} Marcelo Lima | Fonts provided by <a href='https://fontawesome.com/license'>Font Awesome</a> with modifications by Marcelo Lima | Source code available on <a href='https://githumb.com/m-lima'>GitHub</a>
+        Copyright © {new Date().getFullYear()} Marcelo Lima | Fonts provided by <a href='https://fontawesome.com/license'>Font Awesome</a> with modifications by Marcelo Lima | Source code available on <a href='https://github.com/m-lima/passer'>GitHub</a>
       </Footer>
     </React.Fragment>
   )
