@@ -1,7 +1,6 @@
 use wasm_bindgen::prelude::*;
 
 pub enum Error {
-    NothingToProcess,
     FailedToProcess,
     InvalidKey,
     FailedToParseKey,
@@ -16,7 +15,6 @@ impl Error {
 impl std::convert::Into<JsValue> for Error {
     fn into(self) -> JsValue {
         match self {
-            Self::NothingToProcess => JsValue::from("NOTHING_TO_PROCESS"),
             Self::FailedToProcess => JsValue::from("FAILED_TO_PROCESS"),
             Self::InvalidKey => JsValue::from("INVALID_KEY"),
             Self::FailedToParseKey => JsValue::from("FAILED_TO_PARSE_KEY"),
@@ -105,10 +103,6 @@ impl Decrypted {
 
 #[wasm_bindgen]
 pub fn encrypt(key: &Key, payload: &[u8]) -> Result<Encrypted, JsValue> {
-    if payload.is_empty() {
-        return Err(Error::NothingToProcess.into());
-    }
-
     key.encrypt(payload).map_err(Error::into_js_value)
 }
 
@@ -119,10 +113,6 @@ pub fn encrypt_string(key: &Key, payload: &str) -> Result<Encrypted, JsValue> {
 
 #[wasm_bindgen]
 pub fn decrypt(key: &Key, payload: &[u8]) -> Result<Decrypted, JsValue> {
-    if payload.is_empty() {
-        return Err(Error::NothingToProcess.into());
-    }
-
     key.decrypt(payload).map_err(Error::into_js_value)
 }
 

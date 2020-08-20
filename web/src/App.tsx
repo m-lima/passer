@@ -11,9 +11,12 @@ import {
 } from 'reactstrap'
 import { useDropzone } from 'react-dropzone'
 
+import * as passer from 'passer'
+
+import * as Alert from './Alert'
+
 import lock from './img/lock.svg'
 import Footer from './Footer'
-import * as passer from 'passer'
 
 const generateRandom = (size: number) => {
   let array = new Uint8Array(size)
@@ -21,30 +24,70 @@ const generateRandom = (size: number) => {
   return array
 }
 
+const encrypt = (name: string, payload: Uint8Array) => {
+  if (payload.length < minSize) {
+    return Alert.TOO_SMALL(name)
+  }
+
+  if (payload.length > maxSize) {
+    return Alert.TOO_LARGE(name)
+  }
+
+  try {
+    const cipher =  passer.encrypt(key, payload)
+    console.log(`Key: ${key.to_string()}`)
+    console.log(`Secret: ${cipher.payload()}`)
+  } catch (e) {
+    switch (e) {
+      case 'FAILED_TO_PROCESS':
+        return Alert.ERROR_ENCRYPTING(name)
+      case 'INVALID_KEY':
+      case 'FAILED_TO_PARSE_KEY':
+        return Alert.UNKNOWN(name)
+    }
+  }
+}
+
 const key = new passer.Key(generateRandom(44))
 
-const encrypt = (payload: string|Uint8Array) => {
-  const cipher = (typeof payload === "string") ? passer.encrypt_string(key, payload as string) : passer.encrypt(key, payload as Uint8Array)
-  console.log(`Key: ${key.to_string()}`)
-  console.log(`Secret: ${cipher.payload()}`)
-}
+const minSize = 1
+const maxSize = 20 * 1024 * 1024
 
 const App = () => {
 
-  const [clearModal, setClearModal] = useState(false)
+  const [alerts, setAlerts] = useState<Alert.Message[]>([])
+  const [modal, setModal] = useState(false)
   const [secretText, setSecretText] = useState('')
 
-  const clearToggle = () => setClearModal(!clearModal)
+  const toggleModal = () => setModal(!modal)
 
-  const onDrop = useCallback(
+  const clearAlerts = () => setAlerts([])
+  const addAlert = (alert: Alert.Message) => {
+    setAlerts(alerts.concat([alert]))
+  }
+
+  const encryptText = () => {
+    encrypt('Message', new TextEncoder().encode(secretText))
+  }
+
+  const encryptFile = useCallback(
     (files: File[]) => {
-      const reader = new FileReader()
-      reader.onabort = () => console.log('file reading aborted')
-      reader.onerror = () => console.log('file reading failed')
-      reader.onload = () => {
-        encrypt(new Uint8Array(reader.result as ArrayBuffer))
-      }
-      files.forEach(f => reader.readAsArrayBuffer(f))
+      files.forEach(f => {
+        /* if (f.size < minSize) { */
+        /*   addAlertCallback(Alert.TOO_SMALL(f.name)) */
+        /* } else if (f.size > maxSize) { */
+        /*   addAlertCallback(Alert.TOO_LARGE(f.name)) */
+        /* } else { */
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            if (reader.result) {
+              console.log(e)
+              encrypt(f.name, new Uint8Array(reader.result as ArrayBuffer))
+            }
+          }
+          reader.readAsArrayBuffer(f)
+        /* } */
+      })
     },
     []
   )
@@ -52,10 +95,7 @@ const App = () => {
   const {
     getRootProps,
     getInputProps,
-    fileRejections,
   } = useDropzone({
-    minSize: 1,
-    maxSize: 1024 * 1024 * 20,
     onDrop,
   })
 
@@ -67,18 +107,18 @@ const App = () => {
             {' '}Passer
         </NavbarBrand>
       </Navbar>
-      <Modal isOpen={clearModal} toggle={clearToggle}>
+      { alerts.map((a, i) => <Alert.Banner key={i} {...a} /> ) }
+      { alerts.length > 0 ? <Alert.Clear clear={clearAlerts} /> : <React.Fragment /> }
+      <Modal isOpen={modal} toggle={toggleModal}>
         <ModalHeader>
           Are you sure you want to clear the page?
         </ModalHeader>
         <ModalFooter>
           <Button color='success' href='/'>Clear</Button>
-          <Button color='secondary' onClick={clearToggle}>Cancel</Button>
+          <Button color='secondary' onClick={toggleModal}>Cancel</Button>
         </ModalFooter>
       </Modal>
-      <div {...getRootProps()} >
         <Container role='main'>
-            <input {...getInputProps()} />
             <Input
               className='mt-2 mb-2'
               type='textarea'
@@ -91,9 +131,12 @@ const App = () => {
               value={secretText}
               style={{ height: '10rem' }}
             />
-            <Button color='success' size='lg' block onClick={() => encrypt(secretText)}>Encrypt</Button>
-            <Button color='secondary' size='lg' block onClick={clearToggle}>Clear</Button>
+            <Button color='success' size='lg' block onClick={() => encryptText()}>Encrypt</Button>
+            <Button color='secondary' size='lg' block onClick={toggleModal}>Clear</Button>
         </Container>
+      <div {...getRootProps()} >
+        <input {...getInputProps()} />
+          Drop here!!!
       </div>
       <Footer>
         Copyright © {new Date().getFullYear()} Marcelo Lima | Fonts provided by <a href='https://fontawesome.com/license'>Font Awesome</a> with modifications by Marcelo Lima | Source code available on <a href='https://github.com/m-lima/passer'>GitHub</a>
