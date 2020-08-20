@@ -25,90 +25,105 @@ impl std::convert::Into<JsValue> for Error {
 }
 
 #[wasm_bindgen]
-pub struct Secret {
-    key: Vec<u8>,
-    payload: Vec<u8>,
+pub struct Key {
+    cipher: aes_gcm::Aes256Gcm,
+    key: [u8; 44],
 }
 
 #[wasm_bindgen]
-impl Secret {
+impl Key {
     #[wasm_bindgen(constructor)]
-    pub fn new(key: &str, payload: &[u8]) -> Result<Secret, JsValue> {
+    pub fn new(key_bytes: &[u8]) -> Result<Key, JsValue> {
+        use aes_gcm::aead::{generic_array::GenericArray, NewAead};
+
+        if key_bytes.len() != 44 {
+            return Err(Error::InvalidKey.into_js_value());
+        }
+
+        let mut key = [0; 44];
+        key.copy_from_slice(&key_bytes);
+
         Ok(Self {
-            key: base64::decode(key.as_bytes())
-                .map_err(|_| Error::FailedToParseKey.into_js_value())?,
-            payload: Vec::from(payload),
+            cipher: aes_gcm::Aes256Gcm::new(GenericArray::from_slice(&key_bytes[..32])),
+            key,
         })
     }
 
-    fn new_inner(key: Vec<u8>, payload: Vec<u8>) -> Self {
-        Self { key, payload }
+    #[wasm_bindgen]
+    pub fn from_string(key_str: &str) -> Result<Key, JsValue> {
+        Self::new(
+            &base64::decode(key_str.as_bytes())
+                .map_err(|_| Error::FailedToParseKey.into_js_value())?,
+        )
     }
 
-    pub fn key(&self) -> Result<js_sys::JsString, JsValue> {
-        Ok(base64::encode(&self.key).into())
+    #[wasm_bindgen]
+    pub fn to_string(&self) -> js_sys::JsString {
+        base64::encode(&self.key[..]).into()
     }
 
-    pub fn payload(&self) -> js_sys::Uint8Array {
-        unsafe { js_sys::Uint8Array::view(&self.payload) }
+    fn encrypt(&self, payload: &[u8]) -> Result<Encrypted, Error> {
+        use aes_gcm::aead::{generic_array::GenericArray, Aead};
+
+        Ok(Encrypted(
+            self.cipher
+                .encrypt(GenericArray::from_slice(&self.key[32..]), payload)
+                .map_err(|_| Error::FailedToProcess)?,
+        ))
+    }
+
+    fn decrypt(&self, payload: &[u8]) -> Result<Decrypted, Error> {
+        use aes_gcm::aead::{generic_array::GenericArray, Aead};
+
+        Ok(Decrypted(
+            self.cipher
+                .decrypt(GenericArray::from_slice(&self.key[32..]), payload)
+                .map_err(|_| Error::FailedToProcess)?,
+        ))
     }
 }
 
 #[wasm_bindgen]
-pub fn encrypt(payload: &[u8]) -> Result<Secret, JsValue> {
-    // console_error_panic_hook::set_once();
-    use aes_gcm::aead::{generic_array::GenericArray, Aead, NewAead};
-    use rand::Rng;
+pub struct Encrypted(Vec<u8>);
 
+#[wasm_bindgen]
+impl Encrypted {
+    pub fn payload(&self) -> js_sys::Uint8Array {
+        unsafe { js_sys::Uint8Array::view(&self.0) }
+    }
+}
+
+#[wasm_bindgen]
+pub struct Decrypted(Vec<u8>);
+
+#[wasm_bindgen]
+impl Decrypted {
+    pub fn payload(&self) -> js_sys::Uint8Array {
+        unsafe { js_sys::Uint8Array::view(&self.0) }
+    }
+}
+
+#[wasm_bindgen]
+pub fn encrypt(key: &Key, payload: &[u8]) -> Result<Encrypted, JsValue> {
     if payload.is_empty() {
         return Err(Error::NothingToProcess.into());
     }
 
-    let key_bytes = rand::thread_rng().gen::<[u8; 32]>();
-    let nonce_bytes = rand::thread_rng().gen::<[u8; 12]>();
-
-    let key = GenericArray::from_slice(&key_bytes);
-    let cipher = aes_gcm::Aes256Gcm::new(key);
-
-    let nonce = GenericArray::from_slice(&nonce_bytes);
-
-    if let Ok(cipher_text) = cipher.encrypt(nonce, payload) {
-        Ok(Secret::new_inner(
-            [&key_bytes[..], &nonce_bytes[..]].concat(),
-            cipher_text,
-        ))
-    } else {
-        Err(Error::FailedToProcess.into())
-    }
+    key.encrypt(payload).map_err(Error::into_js_value)
 }
 
 #[wasm_bindgen]
-pub fn encrypt_string(payload: &str) -> Result<Secret, JsValue> {
-    encrypt(payload.as_bytes())
+pub fn encrypt_string(key: &Key, payload: &str) -> Result<Encrypted, JsValue> {
+    encrypt(key, payload.as_bytes())
 }
 
 #[wasm_bindgen]
-pub fn decrypt(key64: &[u8], secret: &[u8]) -> Result<js_sys::Uint8Array, JsValue> {
-    use aes_gcm::aead::generic_array::GenericArray;
-    use aes_gcm::aead::Aead;
-    use aes_gcm::aead::NewAead;
-
-    let key_decoded = base64::decode(key64).map_err(|_| Error::FailedToParseKey.into_js_value())?;
-
-    if key_decoded.len() != 32 + 12 {
-        return Err(Error::FailedToParseKey.into());
+pub fn decrypt(key: &Key, payload: &[u8]) -> Result<Decrypted, JsValue> {
+    if payload.is_empty() {
+        return Err(Error::NothingToProcess.into());
     }
 
-    let key = GenericArray::from_slice(&key_decoded[..32]);
-    let cipher = aes_gcm::Aes256Gcm::new(key);
-
-    let nonce = GenericArray::from_slice(&key_decoded[32..]);
-
-    if let Ok(cipher_text) = cipher.decrypt(nonce, secret) {
-        unsafe { Ok(js_sys::Uint8Array::view(&cipher_text)) }
-    } else {
-        Err(Error::FailedToProcess.into())
-    }
+    key.decrypt(payload).map_err(Error::into_js_value)
 }
 
 #[cfg(test)]
