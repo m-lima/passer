@@ -15,7 +15,7 @@ import * as passer from 'passer'
 
 import Alert, { Message } from './Alert'
 
-import lock from './img/lock.svg'
+import lock from './img/lock-optimized.svg'
 import Footer from './Footer'
 
 const generateRandom = (size: number) => {
