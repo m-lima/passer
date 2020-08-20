@@ -13,7 +13,7 @@ import { useDropzone } from 'react-dropzone'
 
 import * as passer from 'passer'
 
-import * as Alert from './Alert'
+import Alert, { Message } from './Alert'
 
 import lock from './img/lock.svg'
 import Footer from './Footer'
@@ -26,11 +26,11 @@ const generateRandom = (size: number) => {
 
 const encrypt = (name: string, payload: Uint8Array) => {
   if (payload.length < minSize) {
-    return Alert.TOO_SMALL(name)
+    return Message.TOO_SMALL(name)
   }
 
   if (payload.length > maxSize) {
-    return Alert.TOO_LARGE(name)
+    return Message.TOO_LARGE(name)
   }
 
   try {
@@ -40,10 +40,10 @@ const encrypt = (name: string, payload: Uint8Array) => {
   } catch (e) {
     switch (e) {
       case 'FAILED_TO_PROCESS':
-        return Alert.ERROR_ENCRYPTING(name)
+        return Message.ERROR_ENCRYPTING(name)
       case 'INVALID_KEY':
       case 'FAILED_TO_PARSE_KEY':
-        return Alert.UNKNOWN(name)
+        return Message.UNKNOWN
     }
   }
 }
@@ -55,40 +55,43 @@ const maxSize = 20 * 1024 * 1024
 
 const App = () => {
 
-  const [alerts, setAlerts] = useState<Alert.Message[]>([])
+  const [alert, setAlert] = useState<Message>()
   const [modal, setModal] = useState(false)
   const [secretText, setSecretText] = useState('')
 
   const toggleModal = () => setModal(!modal)
 
-  const clearAlerts = () => setAlerts([])
-  const addAlert = (alert: Alert.Message) => {
-    setAlerts(alerts.concat([alert]))
-  }
-
   const encryptText = () => {
-    encrypt('Message', new TextEncoder().encode(secretText))
+    setAlert(encrypt('Message', new TextEncoder().encode(secretText)))
   }
 
   const encryptFile = useCallback(
     (files: File[]) => {
-      files.forEach(f => {
-        /* if (f.size < minSize) { */
-        /*   addAlertCallback(Alert.TOO_SMALL(f.name)) */
-        /* } else if (f.size > maxSize) { */
-        /*   addAlertCallback(Alert.TOO_LARGE(f.name)) */
-        /* } else { */
-          const reader = new FileReader()
-          reader.onload = (e) => {
-            if (reader.result) {
-              console.log(e)
-              encrypt(f.name, new Uint8Array(reader.result as ArrayBuffer))
-            }
-          }
-          reader.readAsArrayBuffer(f)
-        /* } */
-      })
-    },
+      if (files.length !== 1) {
+        setAlert(Message.ONLY_ONE_FILE)
+        return
+      }
+
+      const file = files[0]
+      const name = `File ${file.name}`
+      if (file.size < minSize) {
+        setAlert(Message.TOO_SMALL(name))
+        return
+      }
+
+      if (file.size > maxSize) {
+        setAlert(Message.TOO_LARGE(name))
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (reader.result) {
+          encrypt(name, new Uint8Array(reader.result as ArrayBuffer))
+        }
+      }
+      reader.readAsArrayBuffer(file)
+  },
     []
   )
 
@@ -96,7 +99,7 @@ const App = () => {
     getRootProps,
     getInputProps,
   } = useDropzone({
-    onDrop,
+    onDrop: encryptFile,
   })
 
   return (
@@ -107,8 +110,7 @@ const App = () => {
             {' '}Passer
         </NavbarBrand>
       </Navbar>
-      { alerts.map((a, i) => <Alert.Banner key={i} {...a} /> ) }
-      { alerts.length > 0 ? <Alert.Clear clear={clearAlerts} /> : <React.Fragment /> }
+      { alert ? <Alert {...alert} /> : '' }
       <Modal isOpen={modal} toggle={toggleModal}>
         <ModalHeader>
           Are you sure you want to clear the page?

@@ -1,5 +1,3 @@
-import './Alert.css'
-
 import React from 'react'
 import {
   Alert as BootstrapAlert,
@@ -18,17 +16,28 @@ export class Message implements IProps {
     this.color = color
     this.message = message
   }
+
+  static ONLY_ONE_FILE = new Message('Only one file may be uploaded at a time', 'warning')
+
+  static TOO_SMALL(name: string) {
+    return new Message(`${name} is empty`, 'warning')
+  }
+
+  static TOO_LARGE(name: string) {
+    return  new Message(`${name} is too big for encryption. Maximum 20 MB allowed`, 'danger')
+  }
+
+  static ERROR_ENCRYPTING(name: string) {
+    return new Message(`${name} could not be encrypted`, 'danger')
+  }
+
+  static ERROR_DECRYPTING(name: string) {
+    return new Message(`${name} could not be decrypted`, 'danger')
+  }
+
+  static UNKNOWN = new Message('An error occured. Please reload the page.', 'danger')
 }
 
-export const TOO_SMALL = (name: string): IProps => { return { color: 'warning', message: `${name} is empty` } }
-export const TOO_LARGE = (name: string): IProps => { return  { color: 'danger', message: `${name} is too big for encryption. Maximum 20 MB allowed` } }
-export const ERROR_ENCRYPTING = (name: string): IProps => { return { color: 'danger', message: `${name} could not be encrypted` } }
-export const ERROR_DECRYPTING = (name: string): IProps => { return { color: 'danger', message: `${name} could not be decrypted` } }
-export const UNKNOWN = (name: string): IProps => { return { color: 'danger', message: `${name} processing caused an unknown error` } }
+export const Alert = (props: IProps) => <BootstrapAlert style={{ margin: 0 }} color={props.color}>{props.message!}</BootstrapAlert>
 
-export const Banner = (props: IProps) =>
-  props.message
-    ? <BootstrapAlert className='Alert-banner' color={props.color}>{props.message!}</BootstrapAlert>
-    : <React.Fragment />
-
-export const Clear = (props: { clear: () => void }) => <div className='Alert-clear' onClick={() => props.clear()} >↑ CLEAR ↑</div>
+export default Alert
