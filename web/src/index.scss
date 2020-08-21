@@ -18,11 +18,4 @@ $body-bg: #ddeeee;
 @import "node_modules/bootstrap/scss/grid";
 @import "node_modules/bootstrap/scss/modal";
 @import "node_modules/bootstrap/scss/alert";
-
-#lock {
-  height: 2rem;
-}
-
-.navbar {
-  height: 6rem;
-}
+@import "node_modules/bootstrap/scss/progress";

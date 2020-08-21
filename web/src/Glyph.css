@@ -1,16 +1,15 @@
-.Glyph {
-  display: inline-flex;
+.glyph {
+  display: inline;
   align-self: center;
 }
 
-.Glyph svg .Glyph img {
+.glyph svg, .glyph img {
   height: 1em;
   width: 1em;
   fill: currentColor;
-  filter: invert(1);
 }
 
-.Glyph.baseline svg, .Glyph img {
-  top: .125em;
+.glyph.baseline svg, .glyph img {
+  top: -.125em;
   position: relative;
 }

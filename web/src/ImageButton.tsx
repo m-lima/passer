@@ -1,6 +1,6 @@
 import React from 'react'
 
-import './ImageButton.css'
+import './ImageButton.scss'
 
 interface IProps {
   src: string
@@ -8,10 +8,10 @@ interface IProps {
 }
 
 const deriveColor = (color?: string) =>
-  color ? `ImageButton-${color}` : ''
+  color ? `image-button-${color}` : ''
 
 const ImageButton = (props: IProps) =>
-  <div className={`ImageButton ${deriveColor(props.color)}`} />
+  <div className={`image-button ${deriveColor(props.color)}`} />
 
 export default ImageButton
 

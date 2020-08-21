@@ -9,15 +9,19 @@ import {
   ModalFooter,
   Navbar,
   NavbarBrand,
+  Progress,
 } from 'reactstrap'
 import { useDropzone } from 'react-dropzone'
 
 import * as passer from 'passer'
 
+import './App.scss'
+
 import Alert, { Message } from './Alert'
 import Pack from './Pack'
 
 import lock from './img/lock-optimized.svg'
+import { ReactComponent as Upload } from './img/file-upload-solid.svg'
 import Footer from './Footer'
 
 const generateRandom = (size: number) => {
@@ -56,6 +60,8 @@ const App = () => {
   const [secretText, setSecretText] = useState('')
 
   const toggleModal = () => setModal(!modal)
+
+  const totalSize = () => packs.map(p => p.size()).reduce((a, b) => a + b, 0)
 
   const handlePacking = useCallback((value: passer.Pack | Message) => {
     if (value instanceof Message) {
@@ -100,9 +106,12 @@ const App = () => {
   const {
     getRootProps,
     getInputProps,
+    isDragActive,
   } = useDropzone({
     onDrop: packFile,
   })
+
+  const sizePercentage = (totalSize() * 20 / maxSize).toFixed(1)
 
   return (
     <React.Fragment>
@@ -123,31 +132,35 @@ const App = () => {
         </ModalFooter>
       </Modal>
         <Container role='main'>
+          <div className='app-input'>
             <Input
-              className='mt-2 mb-2'
+              className='app-text mt-2 mb-2'
               type='textarea'
               id='secret'
               name='secret'
-              placeholder={'Type message or drag in files to encrypt locally on your browser'}
+              placeholder={'Type message to encrypt locally on your browser'}
               autoComplete='off'
               autoFocus={true}
               onChange={e => setSecretText(e.target.value)}
               value={secretText}
-              style={{ height: '10rem' }}
+              style={{ height: '100px' }}
             />
-            { packs.map((pack, i) => <Pack
-              key={i}
-              plainMessage={pack.plain_message()}
-              name={pack.name()}
-              size={pack.size()}
-            />) }
-            <Button color='success' size='lg' block onClick={() => packText()}>Encrypt</Button>
-            <Button color='secondary' size='lg' block onClick={toggleModal}>Clear</Button>
+            <div className='app-dropzone' id={isDragActive ? 'active' : ''} {...getRootProps()}>
+              <input {...getInputProps()} />
+              Upload
+              <Upload />
+            </div>
+          </div>
+          <Button color='success' size='lg' block onClick={() => packText()}>Encrypt</Button>
+          <Button color='secondary' size='lg' block onClick={toggleModal}>Clear</Button>
+          { packs.map((pack, i) => <Pack
+            key={i}
+            plainMessage={pack.plain_message()}
+            name={pack.name()}
+            size={pack.size()}
+          />) }
+          <Progress striped value={sizePercentage}>{sizePercentage}{' %'}</Progress>
         </Container>
-      <div {...getRootProps()} >
-        <input {...getInputProps()} />
-          Drop here!!!
-      </div>
       <Footer>
         Copyright © {new Date().getFullYear()} Marcelo Lima | Fonts provided by <a href='https://fontawesome.com/license'>Font Awesome</a> with modifications by Marcelo Lima | Source code available on <a href='https://github.com/m-lima/passer'>GitHub</a>
       </Footer>

@@ -1,15 +1,15 @@
-import React from 'react'
+import React, { FunctionComponent } from 'react'
 
 import './Glyph.css'
 
-interface GlyphProps {
+interface IProps {
   src: string
 }
 
-const Glyph = (props: GlyphProps) =>
-  <div className="Glyph baseline">
+const Glyph: FunctionComponent<IProps> = (props) =>
+  <div className="glyph baseline">
     <img src={props.src} alt='' />
-    bla
+    { props.children }
   </div>
 
 export default Glyph

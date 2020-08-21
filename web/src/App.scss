@@ -1,0 +1,38 @@
+@import "node_modules/bootstrap/scss/functions";
+@import "node_modules/bootstrap/scss/variables";
+
+#lock {
+  height: 2em;
+}
+
+.navbar {
+  height: 6em;
+}
+
+.app-input {
+  display: flex;
+}
+
+.app-dropzone {
+  margin: auto;
+  text-align: center;
+  cursor: pointer;
+  color: theme-color("secondary");
+}
+
+.app-dropzone:hover {
+  color: theme-color("primary");
+}
+
+.app-dropzone:active {
+  color: theme-color("primary");
+}
+
+.app-dropzone#active {
+  color: theme-color("primary");
+}
+
+.app-dropzone svg {
+  width: 1.5em;
+}
+
