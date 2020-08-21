@@ -65,14 +65,15 @@ impl Key {
     pub fn encrypt(&self, pack: Pack) -> Result<Encrypted, JsValue> {
         use aes_gcm::aead::{generic_array::GenericArray, Aead};
 
-        let decrypted_binary =
+        let binary =
             bincode::serialize(&pack).map_err(|_| Error::FailedToProcess.into_js_value())?;
+        let compressed = miniz_oxide::deflate::compress_to_vec(&binary, 8);
 
         Ok(Encrypted(
             self.cipher
                 .encrypt(
                     GenericArray::from_slice(&self.key[32..]),
-                    decrypted_binary.as_slice(),
+                    compressed.as_slice(),
                 )
                 .map_err(|_| Error::FailedToProcess.into_js_value())?,
         ))
@@ -82,12 +83,14 @@ impl Key {
     pub fn decrypt(&self, payload: &[u8]) -> Result<Pack, JsValue> {
         use aes_gcm::aead::{generic_array::GenericArray, Aead};
 
-        let decrypted_binary = self
+        let decrypted = self
             .cipher
             .decrypt(GenericArray::from_slice(&self.key[32..]), payload)
             .map_err(|_| Error::FailedToProcess.into_js_value())?;
+        let decompressed = miniz_oxide::inflate::decompress_to_vec(&decrypted)
+            .map_err(|_| Error::FailedToProcess.into_js_value())?;
 
-        bincode::deserialize(&decrypted_binary).map_err(|_| Error::FailedToProcess.into_js_value())
+        bincode::deserialize(&decompressed).map_err(|_| Error::FailedToProcess.into_js_value())
     }
 }
 
@@ -154,16 +157,13 @@ impl Pack {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn can_encrypt() {
-        assert!(
-            super::encrypt(
-                b"12345678901234567890123456789012",
-                b"123456789012",
-                "Yo! This is secret!"
-            )
-            .unwrap()
-            .length()
-                > 0
-        );
+    fn round_trip() {
+        let key = super::Key::new(&[0; 44]).unwrap();
+        let pack = super::Pack::pack_string("foo", "bar");
+        let encrypted = key.encrypt(pack).unwrap();
+        let decrypted = key.decrypt(&encrypted.0).unwrap();
+        assert!(decrypted.plain_message);
+        assert_eq!(decrypted.name, "foo");
+        assert_eq!(decrypted.data, Vec::from("bar"));
     }
 }
