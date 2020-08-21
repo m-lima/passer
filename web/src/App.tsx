@@ -1,3 +1,4 @@
+// TODO: Warning on reload (about to leave the page)
 import React, { useState, useCallback } from 'react'
 import {
   Button,
@@ -14,6 +15,7 @@ import { useDropzone } from 'react-dropzone'
 import * as passer from 'passer'
 
 import Alert, { Message } from './Alert'
+import Pack from './Pack'
 
 import lock from './img/lock-optimized.svg'
 import Footer from './Footer'
@@ -24,28 +26,21 @@ const generateRandom = (size: number) => {
   return array
 }
 
-const encrypt = (name: string, payload: Uint8Array) => {
-  if (payload.length < minSize) {
+const generateRandomName = () => {
+  const suffix = generateRandom(6)
+  return new TextDecoder().decode(suffix.map(b => b % 60).map(n => n < 10 ? n + 48 :( n < 35 ? n + 55 : n + 62)))
+}
+
+const pack = (name: string, data: string|Uint8Array) => {
+  if (data.length < minSize) {
     return Message.TOO_SMALL(name)
   }
 
-  if (payload.length > maxSize) {
+  if (data.length > maxSize) {
     return Message.TOO_LARGE(name)
   }
 
-  try {
-    const cipher =  passer.encrypt(key, payload)
-    console.log(`Key: ${key.to_string()}`)
-    console.log(`Secret: ${cipher.payload()}`)
-  } catch (e) {
-    switch (e) {
-      case 'FAILED_TO_PROCESS':
-        return Message.ERROR_ENCRYPTING(name)
-      case 'INVALID_KEY':
-      case 'FAILED_TO_PARSE_KEY':
-        return Message.UNKNOWN
-    }
-  }
+  return data instanceof Uint8Array ? passer.Pack.pack_file(name, data) : passer.Pack.pack_string(name, data)
 }
 
 const key = new passer.Key(generateRandom(44))
@@ -55,25 +50,34 @@ const maxSize = 20 * 1024 * 1024
 
 const App = () => {
 
+  const [packs, setPacks] = useState<passer.Pack[]>([])
   const [alert, setAlert] = useState<Message>()
   const [modal, setModal] = useState(false)
   const [secretText, setSecretText] = useState('')
 
   const toggleModal = () => setModal(!modal)
 
-  const encryptText = () => {
-    setAlert(encrypt('Message', new TextEncoder().encode(secretText)))
-  }
+  const handlePacking = useCallback((value: passer.Pack | Message) => {
+    if (value instanceof Message) {
+      setAlert(value)
+    } else {
+      setPacks([...packs, value])
+    }
+  }, [packs])
 
-  const encryptFile = useCallback(
-    (files: File[]) => {
+  const packText = useCallback(() => {
+    handlePacking(pack(`Message-${generateRandomName()}`, secretText))
+    setSecretText('')
+  }, [secretText, handlePacking])
+
+  const packFile = useCallback((files: File[]) => {
       if (files.length !== 1) {
         setAlert(Message.ONLY_ONE_FILE)
         return
       }
 
       const file = files[0]
-      const name = `File ${file.name}`
+      const name = `${file.name}`
       if (file.size < minSize) {
         setAlert(Message.TOO_SMALL(name))
         return
@@ -87,19 +91,17 @@ const App = () => {
       const reader = new FileReader()
       reader.onload = () => {
         if (reader.result) {
-          encrypt(name, new Uint8Array(reader.result as ArrayBuffer))
+          handlePacking(pack(name, new Uint8Array(reader.result as ArrayBuffer)))
         }
       }
       reader.readAsArrayBuffer(file)
-  },
-    []
-  )
+  }, [handlePacking])
 
   const {
     getRootProps,
     getInputProps,
   } = useDropzone({
-    onDrop: encryptFile,
+    onDrop: packFile,
   })
 
   return (
@@ -133,7 +135,13 @@ const App = () => {
               value={secretText}
               style={{ height: '10rem' }}
             />
-            <Button color='success' size='lg' block onClick={() => encryptText()}>Encrypt</Button>
+            { packs.map((pack, i) => <Pack
+              key={i}
+              plainMessage={pack.plain_message()}
+              name={pack.name()}
+              size={pack.size()}
+            />) }
+            <Button color='success' size='lg' block onClick={() => packText()}>Encrypt</Button>
             <Button color='secondary' size='lg' block onClick={toggleModal}>Clear</Button>
         </Container>
       <div {...getRootProps()} >

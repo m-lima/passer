@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 pub enum Error {
@@ -60,24 +61,33 @@ impl Key {
         base64::encode(&self.key[..]).into()
     }
 
-    fn encrypt(&self, payload: &[u8]) -> Result<Encrypted, Error> {
+    #[wasm_bindgen]
+    pub fn encrypt(&self, pack: Pack) -> Result<Encrypted, JsValue> {
         use aes_gcm::aead::{generic_array::GenericArray, Aead};
+
+        let decrypted_binary =
+            bincode::serialize(&pack).map_err(|_| Error::FailedToProcess.into_js_value())?;
 
         Ok(Encrypted(
             self.cipher
-                .encrypt(GenericArray::from_slice(&self.key[32..]), payload)
-                .map_err(|_| Error::FailedToProcess)?,
+                .encrypt(
+                    GenericArray::from_slice(&self.key[32..]),
+                    decrypted_binary.as_slice(),
+                )
+                .map_err(|_| Error::FailedToProcess.into_js_value())?,
         ))
     }
 
-    fn decrypt(&self, payload: &[u8]) -> Result<Decrypted, Error> {
+    #[wasm_bindgen]
+    pub fn decrypt(&self, payload: &[u8]) -> Result<Pack, JsValue> {
         use aes_gcm::aead::{generic_array::GenericArray, Aead};
 
-        Ok(Decrypted(
-            self.cipher
-                .decrypt(GenericArray::from_slice(&self.key[32..]), payload)
-                .map_err(|_| Error::FailedToProcess)?,
-        ))
+        let decrypted_binary = self
+            .cipher
+            .decrypt(GenericArray::from_slice(&self.key[32..]), payload)
+            .map_err(|_| Error::FailedToProcess.into_js_value())?;
+
+        bincode::deserialize(&decrypted_binary).map_err(|_| Error::FailedToProcess.into_js_value())
     }
 }
 
@@ -92,28 +102,53 @@ impl Encrypted {
 }
 
 #[wasm_bindgen]
-pub struct Decrypted(Vec<u8>);
+#[derive(Serialize, Deserialize)]
+pub struct Pack {
+    plain_message: bool,
+    name: String,
+    size: usize,
+    data: Vec<u8>,
+}
 
 #[wasm_bindgen]
-impl Decrypted {
-    pub fn payload(&self) -> js_sys::Uint8Array {
-        unsafe { js_sys::Uint8Array::view(&self.0) }
+impl Pack {
+    #[wasm_bindgen]
+    pub fn pack_string(name: &str, data: &str) -> Self {
+        let data = Vec::from(data);
+        let size = data.len();
+        Self {
+            plain_message: true,
+            name: name.into(),
+            size,
+            data,
+        }
     }
-}
 
-#[wasm_bindgen]
-pub fn encrypt(key: &Key, payload: &[u8]) -> Result<Encrypted, JsValue> {
-    key.encrypt(payload).map_err(Error::into_js_value)
-}
+    #[wasm_bindgen]
+    pub fn pack_file(name: &str, data: &[u8]) -> Self {
+        Self {
+            plain_message: false,
+            name: name.into(),
+            size: data.len(),
+            data: data.into(),
+        }
+    }
 
-#[wasm_bindgen]
-pub fn encrypt_string(key: &Key, payload: &str) -> Result<Encrypted, JsValue> {
-    encrypt(key, payload.as_bytes())
-}
+    pub fn plain_message(&self) -> js_sys::Boolean {
+        self.plain_message.into()
+    }
 
-#[wasm_bindgen]
-pub fn decrypt(key: &Key, payload: &[u8]) -> Result<Decrypted, JsValue> {
-    key.decrypt(payload).map_err(Error::into_js_value)
+    pub fn name(&self) -> js_sys::JsString {
+        self.name.clone().into()
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
+    }
+
+    pub fn data(&self) -> js_sys::Uint8Array {
+        unsafe { js_sys::Uint8Array::view(&self.data) }
+    }
 }
 
 #[cfg(test)]
