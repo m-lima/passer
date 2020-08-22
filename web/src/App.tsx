@@ -187,7 +187,7 @@ const App = () => {
         <Input
           innerRef={inputRef}
           type='textarea'
-          placeholder={'Type message to encrypt locally on your browser'}
+          placeholder={'Type message to encrypt locally in your browser'}
           autoComplete='off'
           onChange={e => setSecretText(e.target.value)}
           value={secretText}
@@ -213,8 +213,7 @@ const App = () => {
       const spinner = () => <div className='app-spinner'><Spinner className='spinner' color="info" /></div>
 
   const mainContent = () =>
-    <>
-      <h4>Encrypt data locally in your browser and share ir securely</h4>
+    <Container role='main'>
       <div className='app-input'>
         <div className='app-input-button' id={isDragActive ? 'active' : ''} {...getRootProps()}>
           <input {...getInputProps()} />
@@ -227,7 +226,7 @@ const App = () => {
         </div>
       </div>
       {packs.length > 0 ? packList() : ''}
-    </>
+    </Container>
 
   const footer = () =>
     <Footer>
@@ -239,9 +238,15 @@ const App = () => {
       {navBar()}
       {inputModal()}
       {alerts.map(alert => <Alert {...alert} />)}
-      <Container role='main'>
-        {encrypting ? spinner() : mainContent()}
-      </Container>
+      {encrypting ? spinner() : mainContent()}
+      {packs.length > 0 
+        ? <></>
+        : <div className='app-instruction'>
+            <span className='avoid-wrap'>Encrypt data locally in your browser</span>
+            {' '}
+            <span className='avoid-wrap'>and share it securely</span>
+          </div>
+      }
       {footer()}
     </>
   )

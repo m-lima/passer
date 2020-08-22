@@ -21,3 +21,7 @@ $body-bg: #ddeeee;
 @import "node_modules/bootstrap/scss/progress";
 @import "node_modules/bootstrap/scss/spinners";
 @import "node_modules/bootstrap/scss/list-group";
+
+.avoid-wrap {
+  display: inline-block;
+}
