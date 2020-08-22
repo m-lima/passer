@@ -1,7 +1,7 @@
 // TODO: Warning on reload (about to leave the page)
 // TODO: Fix Alert.tsx
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import {
   Button,
   Container,
@@ -42,11 +42,6 @@ class EncryptedPack {
   }
 }
 
-interface Yo {
-  name: string
-  data: string | Uint8Array
-}
-
 const generateRandom = (size: number) => {
   let array = new Uint8Array(size)
   window.crypto.getRandomValues(array)
@@ -74,28 +69,11 @@ const App = () => {
   const [alert, setAlert] = useState<Message>()
   const [modal, setModal] = useState(false)
   const [secretText, setSecretText] = useState('')
-  /* const [work, setWork] = useState<() => void>() */
-  const [toEncrypt, setToEncrypt] = useState<Yo>()
+  const [encrypting, setEncrypting] = useState(false)
 
   const toggleModal = () => {
     setModal(!modal)
   }
-
-  useEffect(() => {
-    if (toEncrypt) {
-      Promise.resolve(toEncrypt)
-        .then(d => {
-          const pack = new EncryptedPack(d.data instanceof Uint8Array
-            ? key.encrypt_file(d.name, d.data)
-            : key.encrypt_string(d.name, d.data))
-          setToEncrypt(undefined)
-          setPacks([...packs, pack])
-        })
-        .catch(() => setAlert(Message.UNKNOWN))
-        .then(() => console.log('DONE IN'))
-      console.log('DONE OUT')
-    }
-  }, [toEncrypt, packs])
 
   const pack = (name: string, data: string|Uint8Array) => {
     setAlert(undefined)
@@ -105,7 +83,14 @@ const App = () => {
     } else if (data.length > maxSize) {
       setAlert(Message.TOO_LARGE(name))
     } else {
-      setToEncrypt({ name, data })
+      setEncrypting(true)
+      new Promise<EncryptedPack>(resolve => setTimeout(() => resolve(
+        new EncryptedPack(data instanceof Uint8Array
+            ? key.encrypt_file(name, data)
+            : key.encrypt_string(name, data))), 10))
+        .then(pack => setPacks([...packs, pack]))
+        .catch(() => setAlert(Message.UNKNOWN))
+        .then(() => setEncrypting(false))
     }
   }
 
@@ -211,14 +196,14 @@ const App = () => {
       Copyright © {new Date().getFullYear()} Marcelo Lima | Fonts provided by <a href='https://fontawesome.com/license'>Font Awesome</a> | Source code available on <a href='https://github.com/m-lima/passer'>GitHub</a>
     </Footer>
 
-      console.log('render ' + (toEncrypt ? 'Y' : 'N'))
+      console.log('render ' + (encrypting ? 'Y' : 'N'))
   return (
     <>
       {navBar()}
       {inputModal()}
       {alert ? <Alert {...alert} /> : ''}
       <Container role='main'>
-        {toEncrypt ? spinner() : mainContent()}
+        {encrypting ? spinner() : mainContent()}
       </Container>
       {footer()}
     </>
