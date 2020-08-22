@@ -107,6 +107,12 @@ const App = () => {
     setModal(!modal)
   }
 
+  const reset = () => {
+    setPacks([])
+    setAlerts([])
+    setTotalSize(0)
+  }
+
   const packText = () => {
     setModal(false)
     setEncrypting(true)
@@ -207,7 +213,7 @@ const App = () => {
       </ListGroup>
       <Progress color='info' value={sizePercentage}><span className='app-progresss'>{sizePercentage}{' %'}</span></Progress>
       <Button color='success' size='lg' block onClick={() => packText()} disabled={totalSize > maxSize}>Done</Button>
-      <Button color='secondary' size='lg' block onClick={() => setPacks([])}>Clear</Button>
+      <Button color='secondary' size='lg' block onClick={reset}>Clear</Button>
     </>
 
   const spinner = () => <div className='app-spinner'><Spinner className='spinner' color="info" /></div>
