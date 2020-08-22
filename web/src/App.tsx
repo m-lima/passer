@@ -75,7 +75,7 @@ const pack = async (name: string, data: string|Uint8Array) => {
 
 const key = new passer.Key(generateRandom(44))
 
-const maxSize = 20 * 1024 * 1024
+const maxSize = 100 * 1024 * 1024
 
 const App = () => {
 
@@ -96,12 +96,12 @@ const App = () => {
   }, [packs])
 
   useEffect(() => {
-    if (totalSize > maxSize * 5 && alerts[alerts.length - 1] !== Message.TOO_MUCH_DATA) {
+    if (totalSize > maxSize && alerts[alerts.length - 1] !== Message.TOO_MUCH_DATA) {
       setAlerts([...alerts, Message.TOO_MUCH_DATA])
     }
   }, [totalSize, alerts])
 
-  const sizePercentage = (totalSize * 20 / maxSize).toFixed(1)
+  const sizePercentage = (totalSize * 100 / maxSize).toFixed(1)
 
   const toggleModal = () => {
     setModal(!modal)
@@ -205,12 +205,12 @@ const App = () => {
       <ListGroup flush>
         { packs.map((pack, i) => <ListGroupItem key={i}><Pack name={pack.name} size={pack.size} /></ListGroupItem>) }
       </ListGroup>
-      <Progress color='info' value={sizePercentage}>{sizePercentage}{' %'}</Progress>
-      <Button color='success' size='lg' block onClick={() => packText()} disabled={totalSize > maxSize * 5}>Done</Button>
+      <Progress color='info' value={sizePercentage}><span className='app-progresss'>{sizePercentage}{' %'}</span></Progress>
+      <Button color='success' size='lg' block onClick={() => packText()} disabled={totalSize > maxSize}>Done</Button>
       <Button color='secondary' size='lg' block onClick={() => setPacks([])}>Clear</Button>
     </>
 
-      const spinner = () => <div className='app-spinner'><Spinner className='spinner' color="info" /></div>
+  const spinner = () => <div className='app-spinner'><Spinner className='spinner' color="info" /></div>
 
   const mainContent = () =>
     <Container role='main'>
@@ -225,7 +225,14 @@ const App = () => {
           Text
         </div>
       </div>
-      {packs.length > 0 ? packList() : ''}
+      {packs.length > 0
+        ? packList()
+        : <div className='app-instruction'>
+            <span className='avoid-wrap'>Encrypt data locally in your browser</span>
+            {' '}
+            <span className='avoid-wrap'>and share it securely</span>
+          </div>
+      }
     </Container>
 
   const footer = () =>
@@ -239,14 +246,6 @@ const App = () => {
       {inputModal()}
       {alerts.map(alert => <Alert {...alert} />)}
       {encrypting ? spinner() : mainContent()}
-      {packs.length > 0 
-        ? <></>
-        : <div className='app-instruction'>
-            <span className='avoid-wrap'>Encrypt data locally in your browser</span>
-            {' '}
-            <span className='avoid-wrap'>and share it securely</span>
-          </div>
-      }
       {footer()}
     </>
   )

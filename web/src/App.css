@@ -27,8 +27,13 @@
 }
 
 .app-spinner .spinner {
+  position: fixed;
   height: 80px;
   width: 80px;
+  top: 50%;
+  left: 50%;
+  margin-top: -40px;
+  margin-left: -40px;
 }
 
 .app-input {
@@ -69,4 +74,10 @@
   display: block;
   height: 100px;
   width: 100%;
+}
+
+.app-progresss {
+  position: absolute;
+  right: 0;
+  left: 0;
 }

@@ -18,7 +18,7 @@ export class Message implements IProps {
   }
 
   static TOO_LARGE(name: string) {
-    return  new Message(`${name} is too big for encryption. Maximum 20 MB allowed.`, 'warning')
+    return  new Message(`${name} is too big for encryption. Maximum 100 MB allowed.`, 'warning')
   }
 
   static ERROR_ENCRYPTING(name: string) {
