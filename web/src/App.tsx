@@ -35,8 +35,8 @@ class EncryptedPack {
   size: number
   data: passer.Encrypted
 
-  constructor(data: passer.Encrypted) {
-    this.name = generateRandomName()
+  constructor(name: string, data: passer.Encrypted) {
+    this.name = `${generateRandomName()} (${name})`
     this.size = data.payload().length
     this.data = data
   }
@@ -85,7 +85,7 @@ const App = () => {
     } else {
       setEncrypting(true)
       new Promise<EncryptedPack>(resolve => setTimeout(() => resolve(
-        new EncryptedPack(data instanceof Uint8Array
+        new EncryptedPack(name, data instanceof Uint8Array
             ? key.encrypt_file(name, data)
             : key.encrypt_string(name, data))), 10))
         .then(pack => setPacks([...packs, pack]))
@@ -96,7 +96,7 @@ const App = () => {
 
   const packText = () => {
     setModal(false)
-    pack('', secretText)
+    pack('Message', secretText)
   }
 
   const packFile = (files: File[]) => {
@@ -196,7 +196,6 @@ const App = () => {
       Copyright © {new Date().getFullYear()} Marcelo Lima | Fonts provided by <a href='https://fontawesome.com/license'>Font Awesome</a> | Source code available on <a href='https://github.com/m-lima/passer'>GitHub</a>
     </Footer>
 
-      console.log('render ' + (encrypting ? 'Y' : 'N'))
   return (
     <>
       {navBar()}
