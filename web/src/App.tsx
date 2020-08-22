@@ -1,7 +1,7 @@
 // TODO: Warning on reload (about to leave the page)
-// TODO: Fix Alert.tsx
+// TODO: Click to dismiss alert
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Button,
   Container,
@@ -27,8 +27,8 @@ import Pack from './Pack'
 import Footer from './Footer'
 
 import lock from './img/lock-optimized.svg'
-import { ReactComponent as Write } from './img/edit-solid.svg'
-import { ReactComponent as Upload } from './img/file-upload-solid.svg'
+import { ReactComponent as SendFile } from './img/file-import-solid.svg'
+import { ReactComponent as SendText } from './img/file-signature-solid.svg'
 
 class EncryptedPack {
   name: string
@@ -53,9 +53,28 @@ const generateRandomName = () => {
   return new TextDecoder().decode(suffix.map(b => b % 60).map(n => n < 10 ? n + 48 :( n < 35 ? n + 55 : n + 62)))
 }
 
+const render = () => {
+  return new Promise(resolve => setTimeout(resolve, 10));
+}
+
+const pack = async (name: string, data: string|Uint8Array) => {
+  if (data.length > maxSize) {
+    return Message.TOO_LARGE(name)
+  }
+
+  await render()
+
+  try {
+    return new EncryptedPack(name, data instanceof Uint8Array
+      ? key.encrypt_file(name, data)
+      : key.encrypt_string(name, data))
+  } catch {
+    return Message.ERROR_ENCRYPTING(name)
+  }
+}
+
 const key = new passer.Key(generateRandom(44))
 
-const minSize = 1
 const maxSize = 20 * 1024 * 1024
 
 const App = () => {
@@ -66,62 +85,83 @@ const App = () => {
   }
 
   const [packs, setPacks] = useState<EncryptedPack[]>([])
-  const [alert, setAlert] = useState<Message>()
+  const [alerts, setAlerts] = useState<Message[]>([])
   const [modal, setModal] = useState(false)
   const [secretText, setSecretText] = useState('')
   const [encrypting, setEncrypting] = useState(false)
+  const [totalSize, setTotalSize] = useState(0)
+
+  useEffect(() => {
+    setTotalSize(packs.map(p => p.size).reduce((a, b) => a + b, 0))
+  }, [packs])
+
+  useEffect(() => {
+    if (totalSize > maxSize * 5 && alerts[alerts.length - 1] !== Message.TOO_MUCH_DATA) {
+      setAlerts([...alerts, Message.TOO_MUCH_DATA])
+    }
+  }, [totalSize, alerts])
+
+  const sizePercentage = (totalSize * 20 / maxSize).toFixed(1)
 
   const toggleModal = () => {
     setModal(!modal)
   }
 
-  const pack = (name: string, data: string|Uint8Array) => {
-    setAlert(undefined)
-
-    if (data.length < minSize) {
-      setAlert(Message.TOO_SMALL(name))
-    } else if (data.length > maxSize) {
-      setAlert(Message.TOO_LARGE(name))
-    } else {
-      setEncrypting(true)
-      new Promise<EncryptedPack>(resolve => setTimeout(() => resolve(
-        new EncryptedPack(name, data instanceof Uint8Array
-            ? key.encrypt_file(name, data)
-            : key.encrypt_string(name, data))), 10))
-        .then(pack => setPacks([...packs, pack]))
-        .catch(() => setAlert(Message.UNKNOWN))
-        .then(() => setEncrypting(false))
-    }
-  }
-
   const packText = () => {
     setModal(false)
-    pack('Message', secretText)
+    setEncrypting(true)
+    setAlerts([])
+    Promise.resolve(pack('Message', secretText))
+      .then(r => r instanceof Message ? setAlerts([r]) : setPacks([...packs, r]))
+      .then(() => setEncrypting(false))
   }
 
   const packFile = (files: File[]) => {
-    if (files.length !== 1) {
-      setAlert(Message.ONLY_ONE_FILE)
-      return
-    }
+    setEncrypting(true)
+    setAlerts([])
 
-    const file = files[0]
-    const name = `${file.name}`
+    const readFile = (file: File): Promise<Message | EncryptedPack> => {
+      const name = `${file.name}`
 
-    if (file.size < minSize) {
-      setAlert(Message.TOO_SMALL(name))
-    } else if (file.size > maxSize) {
-      setAlert(Message.TOO_LARGE(name))
-      return
-    } else {
-      const reader = new FileReader()
-      reader.onload = () => {
-        if (reader.result) {
-          pack(name, new Uint8Array(reader.result as ArrayBuffer))
-        }
+      if (file.size > maxSize) {
+        return Promise.resolve(Message.TOO_LARGE(name))
       }
-      reader.readAsArrayBuffer(file)
+
+      return new Promise(resolve => {
+        const reader = new FileReader()
+
+        reader.onload = () => {
+          if (reader.result) {
+            resolve(pack(name, new Uint8Array(reader.result as ArrayBuffer)))
+          }
+        }
+
+        reader.readAsArrayBuffer(file)
+      })
     }
+
+    interface Acc {
+      messages: Message[]
+      packs: EncryptedPack[]
+    }
+
+    const emptyAcc = () => { return {
+      messages: [],
+      packs: [],
+    }}
+
+    const accumulate = (acc: Acc, curr: EncryptedPack | Message) => {
+      curr instanceof EncryptedPack ? acc.packs.push(curr) : acc.messages.push(curr)
+      return acc
+    }
+
+    Promise.all(files.map(readFile))
+      .then(r => r.reduce(accumulate, emptyAcc()))
+      .then(r => {
+        setPacks([...packs, ...r.packs])
+        setAlerts(r.messages)
+      })
+      .then(() => setEncrypting(false))
   }
 
   const {
@@ -131,9 +171,6 @@ const App = () => {
   } = useDropzone({
     onDrop: packFile,
   })
-
-  const totalSize = () => packs.map(p => p.size).reduce((a, b) => a + b, 0)
-  const sizePercentage = (totalSize() * 20 / maxSize).toFixed(1)
 
   const navBar = () =>
     <Navbar color='dark' dark>
@@ -158,7 +195,7 @@ const App = () => {
         />
       </ModalBody>
       <ModalFooter>
-        <Button color='success' onClick={packText}>Encrypt</Button>
+        <Button color='success' onClick={packText} disabled={secretText.length === 0}>Encrypt</Button>
         <Button color='secondary' onClick={toggleModal}>Cancel</Button>
       </ModalFooter>
     </Modal>
@@ -169,7 +206,7 @@ const App = () => {
         { packs.map((pack, i) => <ListGroupItem key={i}><Pack name={pack.name} size={pack.size} /></ListGroupItem>) }
       </ListGroup>
       <Progress color='info' value={sizePercentage}>{sizePercentage}{' %'}</Progress>
-      <Button color='success' size='lg' block onClick={() => packText()}>Done</Button>
+      <Button color='success' size='lg' block onClick={() => packText()} disabled={totalSize > maxSize * 5}>Done</Button>
       <Button color='secondary' size='lg' block onClick={() => setPacks([])}>Clear</Button>
     </>
 
@@ -177,15 +214,16 @@ const App = () => {
 
   const mainContent = () =>
     <>
+      <h4>Encrypt data locally in your browser and share ir securely</h4>
       <div className='app-input'>
         <div className='app-input-button' id={isDragActive ? 'active' : ''} {...getRootProps()}>
           <input {...getInputProps()} />
-          <Upload className='app-input-button-image' />
-          Upload
+          <SendFile style={{ paddingRight: '24px' }} className='app-input-button-image' />
+          File
         </div>
         <div className='app-input-button' onClick={toggleModal}>
-          <Write style={{ paddingLeft: '16px' }} className='app-input-button-image' />
-          Message
+          <SendText style={{ paddingLeft: '40px' }} className='app-input-button-image' />
+          Text
         </div>
       </div>
       {packs.length > 0 ? packList() : ''}
@@ -200,7 +238,7 @@ const App = () => {
     <>
       {navBar()}
       {inputModal()}
-      {alert ? <Alert {...alert} /> : ''}
+      {alerts.map(alert => <Alert {...alert} />)}
       <Container role='main'>
         {encrypting ? spinner() : mainContent()}
       </Container>

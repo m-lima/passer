@@ -17,24 +17,19 @@ export class Message implements IProps {
     this.message = message
   }
 
-  static ONLY_ONE_FILE = new Message('Only one file may be uploaded at a time', 'warning')
-
-  static TOO_SMALL(name: string) {
-    return new Message(`${name} is empty`, 'warning')
-  }
-
   static TOO_LARGE(name: string) {
-    return  new Message(`${name} is too big for encryption. Maximum 20 MB allowed`, 'danger')
+    return  new Message(`${name} is too big for encryption. Maximum 20 MB allowed.`, 'warning')
   }
 
   static ERROR_ENCRYPTING(name: string) {
-    return new Message(`${name} could not be encrypted`, 'danger')
+    return new Message(`${name} could not be encrypted.`, 'warning')
   }
 
   static ERROR_DECRYPTING(name: string) {
-    return new Message(`${name} could not be decrypted`, 'danger')
+    return new Message(`${name} could not be decrypted.`, 'warning')
   }
 
+  static TOO_MUCH_DATA = new Message('Too much data encrypted. Maximum 100 MB allowed.', 'danger')
   static UNKNOWN = new Message('An error occured. Please reload the page.', 'danger')
 }
 
