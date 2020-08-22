@@ -1,28 +1,51 @@
 // TODO: Warning on reload (about to leave the page)
-import React, { useState, useCallback } from 'react'
+// TODO: Fix Alert.tsx
+
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Button,
   Container,
   Input,
+  ListGroup,
+  ListGroupItem,
   Modal,
-  ModalHeader,
+  ModalBody,
   ModalFooter,
   Navbar,
   NavbarBrand,
   Progress,
+  Spinner,
 } from 'reactstrap'
 import { useDropzone } from 'react-dropzone'
 
 import * as passer from 'passer'
 
-import './App.scss'
+import './App.css'
 
 import Alert, { Message } from './Alert'
 import Pack from './Pack'
+import Footer from './Footer'
 
 import lock from './img/lock-optimized.svg'
+import { ReactComponent as Write } from './img/edit-solid.svg'
 import { ReactComponent as Upload } from './img/file-upload-solid.svg'
-import Footer from './Footer'
+
+class EncryptedPack {
+  name: string
+  size: number
+  data: passer.Encrypted
+
+  constructor(data: passer.Encrypted) {
+    this.name = generateRandomName()
+    this.size = data.payload().length
+    this.data = data
+  }
+}
+
+interface Yo {
+  name: string
+  data: string | Uint8Array
+}
 
 const generateRandom = (size: number) => {
   let array = new Uint8Array(size)
@@ -31,20 +54,8 @@ const generateRandom = (size: number) => {
 }
 
 const generateRandomName = () => {
-  const suffix = generateRandom(6)
+  const suffix = generateRandom(8)
   return new TextDecoder().decode(suffix.map(b => b % 60).map(n => n < 10 ? n + 48 :( n < 35 ? n + 55 : n + 62)))
-}
-
-const pack = (name: string, data: string|Uint8Array) => {
-  if (data.length < minSize) {
-    return Message.TOO_SMALL(name)
-  }
-
-  if (data.length > maxSize) {
-    return Message.TOO_LARGE(name)
-  }
-
-  return data instanceof Uint8Array ? passer.Pack.pack_file(name, data) : passer.Pack.pack_string(name, data)
 }
 
 const key = new passer.Key(generateRandom(44))
@@ -54,54 +65,79 @@ const maxSize = 20 * 1024 * 1024
 
 const App = () => {
 
-  const [packs, setPacks] = useState<passer.Pack[]>([])
+  const inputRef = useRef<HTMLInputElement>(null)
+  const setInputFocus = () => {
+    inputRef && inputRef.current && inputRef.current.focus()
+  }
+
+  const [packs, setPacks] = useState<EncryptedPack[]>([])
   const [alert, setAlert] = useState<Message>()
   const [modal, setModal] = useState(false)
   const [secretText, setSecretText] = useState('')
+  /* const [work, setWork] = useState<() => void>() */
+  const [toEncrypt, setToEncrypt] = useState<Yo>()
 
-  const toggleModal = () => setModal(!modal)
+  const toggleModal = () => {
+    setModal(!modal)
+  }
 
-  const totalSize = () => packs.map(p => p.size()).reduce((a, b) => a + b, 0)
-
-  const handlePacking = useCallback((value: passer.Pack | Message) => {
-    if (value instanceof Message) {
-      setAlert(value)
-    } else {
-      setPacks([...packs, value])
+  useEffect(() => {
+    if (toEncrypt) {
+      Promise.resolve(toEncrypt)
+        .then(d => {
+          const pack = new EncryptedPack(d.data instanceof Uint8Array
+            ? key.encrypt_file(d.name, d.data)
+            : key.encrypt_string(d.name, d.data))
+          setToEncrypt(undefined)
+          setPacks([...packs, pack])
+        })
+        .catch(() => setAlert(Message.UNKNOWN))
+        .then(() => console.log('DONE IN'))
+      console.log('DONE OUT')
     }
-  }, [packs])
+  }, [toEncrypt, packs])
 
-  const packText = useCallback(() => {
-    handlePacking(pack(`Message-${generateRandomName()}`, secretText))
-    setSecretText('')
-  }, [secretText, handlePacking])
+  const pack = (name: string, data: string|Uint8Array) => {
+    setAlert(undefined)
 
-  const packFile = useCallback((files: File[]) => {
-      if (files.length !== 1) {
-        setAlert(Message.ONLY_ONE_FILE)
-        return
-      }
+    if (data.length < minSize) {
+      setAlert(Message.TOO_SMALL(name))
+    } else if (data.length > maxSize) {
+      setAlert(Message.TOO_LARGE(name))
+    } else {
+      setToEncrypt({ name, data })
+    }
+  }
 
-      const file = files[0]
-      const name = `${file.name}`
-      if (file.size < minSize) {
-        setAlert(Message.TOO_SMALL(name))
-        return
-      }
+  const packText = () => {
+    setModal(false)
+    pack('', secretText)
+  }
 
-      if (file.size > maxSize) {
-        setAlert(Message.TOO_LARGE(name))
-        return
-      }
+  const packFile = (files: File[]) => {
+    if (files.length !== 1) {
+      setAlert(Message.ONLY_ONE_FILE)
+      return
+    }
 
+    const file = files[0]
+    const name = `${file.name}`
+
+    if (file.size < minSize) {
+      setAlert(Message.TOO_SMALL(name))
+    } else if (file.size > maxSize) {
+      setAlert(Message.TOO_LARGE(name))
+      return
+    } else {
       const reader = new FileReader()
       reader.onload = () => {
         if (reader.result) {
-          handlePacking(pack(name, new Uint8Array(reader.result as ArrayBuffer)))
+          pack(name, new Uint8Array(reader.result as ArrayBuffer))
         }
       }
       reader.readAsArrayBuffer(file)
-  }, [handlePacking])
+    }
+  }
 
   const {
     getRootProps,
@@ -111,60 +147,81 @@ const App = () => {
     onDrop: packFile,
   })
 
+  const totalSize = () => packs.map(p => p.size).reduce((a, b) => a + b, 0)
   const sizePercentage = (totalSize() * 20 / maxSize).toFixed(1)
 
+  const navBar = () =>
+    <Navbar color='dark' dark>
+      <NavbarBrand href='/'>
+        <img className='d-inline-block align-top' id='lock' src={lock} alt='' />
+        {' '}
+        Passer
+      </NavbarBrand>
+    </Navbar>
+
+  const inputModal = () =>
+    <Modal centered onOpened={setInputFocus} onClosed={() => setSecretText('')} isOpen={modal} toggle={toggleModal}>
+      <ModalBody>
+        <Input
+          innerRef={inputRef}
+          type='textarea'
+          placeholder={'Type message to encrypt locally on your browser'}
+          autoComplete='off'
+          onChange={e => setSecretText(e.target.value)}
+          value={secretText}
+          rows={4}
+        />
+      </ModalBody>
+      <ModalFooter>
+        <Button color='success' onClick={packText}>Encrypt</Button>
+        <Button color='secondary' onClick={toggleModal}>Cancel</Button>
+      </ModalFooter>
+    </Modal>
+
+  const packList = () =>
+    <>
+      <ListGroup flush>
+        { packs.map((pack, i) => <ListGroupItem key={i}><Pack name={pack.name} size={pack.size} /></ListGroupItem>) }
+      </ListGroup>
+      <Progress color='info' value={sizePercentage}>{sizePercentage}{' %'}</Progress>
+      <Button color='success' size='lg' block onClick={() => packText()}>Done</Button>
+      <Button color='secondary' size='lg' block onClick={() => setPacks([])}>Clear</Button>
+    </>
+
+      const spinner = () => <div className='app-spinner'><Spinner className='spinner' color="info" /></div>
+
+  const mainContent = () =>
+    <>
+      <div className='app-input'>
+        <div className='app-input-button' id={isDragActive ? 'active' : ''} {...getRootProps()}>
+          <input {...getInputProps()} />
+          <Upload className='app-input-button-image' />
+          Upload
+        </div>
+        <div className='app-input-button' onClick={toggleModal}>
+          <Write style={{ paddingLeft: '16px' }} className='app-input-button-image' />
+          Message
+        </div>
+      </div>
+      {packs.length > 0 ? packList() : ''}
+    </>
+
+  const footer = () =>
+    <Footer>
+      Copyright © {new Date().getFullYear()} Marcelo Lima | Fonts provided by <a href='https://fontawesome.com/license'>Font Awesome</a> | Source code available on <a href='https://github.com/m-lima/passer'>GitHub</a>
+    </Footer>
+
+      console.log('render ' + (toEncrypt ? 'Y' : 'N'))
   return (
-    <React.Fragment>
-      <Navbar color='dark' dark>
-        <NavbarBrand href='/'>
-          <img className='d-inline-block align-top' id='lock' src={lock} alt='' />
-            {' '}Passer
-        </NavbarBrand>
-      </Navbar>
-      { alert ? <Alert {...alert} /> : '' }
-      <Modal isOpen={modal} toggle={toggleModal}>
-        <ModalHeader>
-          Are you sure you want to clear the page?
-        </ModalHeader>
-        <ModalFooter>
-          <Button color='success' href='/'>Clear</Button>
-          <Button color='secondary' onClick={toggleModal}>Cancel</Button>
-        </ModalFooter>
-      </Modal>
-        <Container role='main'>
-          <div className='app-input'>
-            <Input
-              className='app-text mt-2 mb-2'
-              type='textarea'
-              id='secret'
-              name='secret'
-              placeholder={'Type message to encrypt locally on your browser'}
-              autoComplete='off'
-              autoFocus={true}
-              onChange={e => setSecretText(e.target.value)}
-              value={secretText}
-              style={{ height: '100px' }}
-            />
-            <div className='app-dropzone' id={isDragActive ? 'active' : ''} {...getRootProps()}>
-              <input {...getInputProps()} />
-              Upload
-              <Upload />
-            </div>
-          </div>
-          <Button color='success' size='lg' block onClick={() => packText()}>Encrypt</Button>
-          <Button color='secondary' size='lg' block onClick={toggleModal}>Clear</Button>
-          { packs.map((pack, i) => <Pack
-            key={i}
-            plainMessage={pack.plain_message()}
-            name={pack.name()}
-            size={pack.size()}
-          />) }
-          <Progress striped value={sizePercentage}>{sizePercentage}{' %'}</Progress>
-        </Container>
-      <Footer>
-        Copyright © {new Date().getFullYear()} Marcelo Lima | Fonts provided by <a href='https://fontawesome.com/license'>Font Awesome</a> with modifications by Marcelo Lima | Source code available on <a href='https://github.com/m-lima/passer'>GitHub</a>
-      </Footer>
-    </React.Fragment>
+    <>
+      {navBar()}
+      {inputModal()}
+      {alert ? <Alert {...alert} /> : ''}
+      <Container role='main'>
+        {toEncrypt ? spinner() : mainContent()}
+      </Container>
+      {footer()}
+    </>
   )
 }
 

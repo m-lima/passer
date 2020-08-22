@@ -12,10 +12,12 @@ $body-bg: #ddeeee;
 @import "node_modules/bootstrap/scss/utilities";
 
 // Bootstrap elements
+@import "node_modules/bootstrap/scss/alert";
 @import "node_modules/bootstrap/scss/buttons";
 @import "node_modules/bootstrap/scss/forms";
-@import "node_modules/bootstrap/scss/navbar";
 @import "node_modules/bootstrap/scss/grid";
 @import "node_modules/bootstrap/scss/modal";
-@import "node_modules/bootstrap/scss/alert";
+@import "node_modules/bootstrap/scss/navbar";
 @import "node_modules/bootstrap/scss/progress";
+@import "node_modules/bootstrap/scss/spinners";
+@import "node_modules/bootstrap/scss/list-group";

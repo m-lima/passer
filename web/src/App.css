@@ -1,0 +1,67 @@
+#lock {
+  height: 32px;
+}
+
+.navbar {
+  min-height: 64px;
+}
+
+.progress {
+  background-color: #cccccc;
+  margin-bottom: 1rem;
+}
+
+.list-group-item {
+  background-color: transparent;
+}
+
+
+.app-spinner {
+  height: 100px;
+  width: 100%;
+}
+
+.app-spinner .spinner {
+  height: 80px;
+  width: 80px;
+}
+
+.app-input {
+  display: flex;
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
+.app-input-button {
+  width: 100%;
+  font-size: 2rem;
+  text-align: center;
+  color: #157786;
+  cursor: pointer;
+}
+
+.app-input-button:focus {
+  outline: none;
+}
+
+.app-input-button:active, .app-input-button:hover, .app-input-button#active {
+  color: var(--info);
+}
+
+.app-input-button:not(:last-child) {
+  border-right-style: solid;
+  border-right-color: #00000055;
+  border-right-width: 1px;
+}
+
+.app-input-button:not(:first-child) {
+  border-left-style: solid;
+  border-left-color: #00000033;
+  border-left-width: 1px;
+}
+
+.app-input-button-image {
+  display: block;
+  height: 100px;
+  width: 100%;
+}

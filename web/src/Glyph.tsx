@@ -9,6 +9,7 @@ interface IProps {
 const Glyph: FunctionComponent<IProps> = (props) =>
   <div className="glyph baseline">
     <img src={props.src} alt='' />
+    {' '}
     { props.children }
   </div>
 

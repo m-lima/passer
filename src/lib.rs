@@ -61,8 +61,7 @@ impl Key {
         base64::encode(&self.key[..]).into()
     }
 
-    #[wasm_bindgen]
-    pub fn encrypt(&self, pack: Pack) -> Result<Encrypted, JsValue> {
+    fn encrypt(&self, pack: Pack) -> Result<Encrypted, JsValue> {
         use aes_gcm::aead::{generic_array::GenericArray, Aead};
 
         let binary =
@@ -77,6 +76,32 @@ impl Key {
                 )
                 .map_err(|_| Error::FailedToProcess.into_js_value())?,
         ))
+    }
+
+    #[wasm_bindgen]
+    pub fn encrypt_string(&self, name: &str, data: &str) -> Result<Encrypted, JsValue> {
+        let pack = {
+            let data = Vec::from(data);
+            let size = data.len();
+            Pack {
+                plain_message: true,
+                name: name.into(),
+                size,
+                data,
+            }
+        };
+        self.encrypt(pack)
+    }
+
+    #[wasm_bindgen]
+    pub fn encrypt_file(&self, name: &str, data: &[u8]) -> Result<Encrypted, JsValue> {
+        let pack = Pack {
+            plain_message: false,
+            name: name.into(),
+            size: data.len(),
+            data: data.into(),
+        };
+        self.encrypt(pack)
     }
 
     #[wasm_bindgen]
@@ -115,28 +140,6 @@ pub struct Pack {
 
 #[wasm_bindgen]
 impl Pack {
-    #[wasm_bindgen]
-    pub fn pack_string(name: &str, data: &str) -> Self {
-        let data = Vec::from(data);
-        let size = data.len();
-        Self {
-            plain_message: true,
-            name: name.into(),
-            size,
-            data,
-        }
-    }
-
-    #[wasm_bindgen]
-    pub fn pack_file(name: &str, data: &[u8]) -> Self {
-        Self {
-            plain_message: false,
-            name: name.into(),
-            size: data.len(),
-            data: data.into(),
-        }
-    }
-
     pub fn plain_message(&self) -> js_sys::Boolean {
         self.plain_message.into()
     }
@@ -159,8 +162,7 @@ mod tests {
     #[test]
     fn round_trip() {
         let key = super::Key::new(&[0; 44]).unwrap();
-        let pack = super::Pack::pack_string("foo", "bar");
-        let encrypted = key.encrypt(pack).unwrap();
+        let encrypted = key.encrypt_string("foo", "bar").unwrap();
         let decrypted = key.decrypt(&encrypted.0).unwrap();
         assert!(decrypted.plain_message);
         assert_eq!(decrypted.name, "foo");
