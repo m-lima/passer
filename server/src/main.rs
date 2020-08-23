@@ -17,20 +17,17 @@ fn post_handler(
     use futures::future::{self, FutureExt};
 
     async {
-        use gotham::handler::IntoHandlerError;
+        use gotham::handler::{IntoHandlerError, IntoResponse};
+        use gotham::hyper::{body, Body};
         use gotham::state::FromState;
-        match gotham::hyper::body::to_bytes(gotham::hyper::Body::take_from(&mut state)).await {
-            Ok(body) => {
-                let response = gotham::handler::IntoResponse::into_response(body, &state);
-                Ok((state, response))
-            }
-            Err(e) => Err((state, e.into_handler_error())),
-        }
+
+        let response = body::to_bytes(Body::take_from(&mut state))
+            .await
+            .map_err(IntoHandlerError::into_handler_error)
+            .into_response(&state);
+        (state, response)
     }
-    .then(|r| match r {
-        Ok(r) => future::ok(r),
-        Err(e) => future::err(e),
-    })
+    .then(future::ok)
     .boxed()
 }
 
