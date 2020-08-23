@@ -10,3 +10,6 @@ gotham = "0.5.0-rc.1"
 gotham_derive = "0.5.0-rc.1"
 rand = "0.7"
 serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+mime = "0.3"
