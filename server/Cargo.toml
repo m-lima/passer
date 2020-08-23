@@ -5,7 +5,8 @@ authors = ["Marcelo Lima <marcelowind@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3"
+base64 = "0.12"
 gotham = "0.5.0-rc.1"
 gotham_derive = "0.5.0-rc.1"
+rand = "0.7"
 serde = { version = "1", features = ["derive"] }
