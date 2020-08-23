@@ -1,0 +1,16 @@
+.loading-spinner {
+  height: 100px;
+  width: 100%;
+}
+
+.loading-spinner .spinner {
+  position: fixed;
+  height: 80px;
+  width: 80px;
+  top: 50%;
+  left: 50%;
+  margin-top: -40px;
+  margin-left: -40px;
+}
+
+

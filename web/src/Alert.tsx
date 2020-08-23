@@ -8,7 +8,7 @@ interface IProps {
   message: string
 }
 
-export class Message implements IProps {
+export class Alert implements IProps {
   color?: string
   message: string
 
@@ -18,21 +18,21 @@ export class Message implements IProps {
   }
 
   static TOO_LARGE(name: string) {
-    return  new Message(`${name} is too big for encryption. Maximum 100 MB allowed.`, 'warning')
+    return  new Alert(`${name} is too big for encryption. Maximum 100 MB allowed.`, 'warning')
   }
 
   static ERROR_ENCRYPTING(name: string) {
-    return new Message(`${name} could not be encrypted.`, 'warning')
+    return new Alert(`${name} could not be encrypted.`, 'warning')
   }
 
   static ERROR_DECRYPTING(name: string) {
-    return new Message(`${name} could not be decrypted.`, 'warning')
+    return new Alert(`${name} could not be decrypted.`, 'warning')
   }
 
-  static TOO_MUCH_DATA = new Message('Too much data encrypted. Maximum 100 MB allowed.', 'danger')
-  static UNKNOWN = new Message('An error occured. Please reload the page.', 'danger')
+  static TOO_MUCH_DATA = new Alert('Too much data encrypted. Maximum 100 MB allowed.', 'danger')
+  static UNKNOWN = new Alert('An error occured. Please reload the page.', 'danger')
 }
 
-export const Alert = (props: IProps) => <BootstrapAlert style={{ margin: 0 }} color={props.color}>{props.message!}</BootstrapAlert>
+export const AlertBanner = (props: IProps) => <BootstrapAlert style={{ margin: 0 }} color={props.color}>{props.message!}</BootstrapAlert>
 
 export default Alert
