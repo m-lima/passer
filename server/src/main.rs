@@ -1,6 +1,8 @@
 #![deny(warnings, clippy::pedantic, clippy::all)]
 #![warn(rust_2018_idioms)]
 
+use gotham::hyper;
+
 #[derive(serde::Deserialize, gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
 struct IdExtractor {
     id: String,
@@ -46,7 +48,7 @@ impl Store {
         if data.is_empty() {
             return Err(Error::NothingToInsert
                 .into_handler_error()
-                .with_status(gotham::hyper::StatusCode::BAD_REQUEST));
+                .with_status(hyper::StatusCode::BAD_REQUEST));
         }
 
         if let Ok(mut map) = self.secrets.lock() {
@@ -73,7 +75,7 @@ impl Store {
                 map.remove(key).ok_or_else(|| {
                     Error::SecretNotFound
                         .into_handler_error()
-                        .with_status(gotham::hyper::StatusCode::NOT_FOUND)
+                        .with_status(hyper::StatusCode::NOT_FOUND)
                 })
             })
     }
@@ -81,10 +83,7 @@ impl Store {
 
 fn get_handler(
     mut state: gotham::state::State,
-) -> (
-    gotham::state::State,
-    gotham::hyper::Response<gotham::hyper::Body>,
-) {
+) -> (gotham::state::State, hyper::Response<hyper::Body>) {
     use gotham::handler::IntoResponse;
     use gotham::state::FromState;
 
@@ -102,22 +101,22 @@ fn post_handler(
 ) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>> {
     Box::pin(async {
         use gotham::handler::{IntoHandlerError, IntoResponse};
-        use gotham::hyper::{body, Body};
         use gotham::state::FromState;
+        use hyper::{body, Body};
 
+        // Allowed because this is third-party code being flagged
+        #[allow(clippy::used_underscore_binding)]
         match body::to_bytes(Body::take_from(&mut state))
             .await
             .map(|b| b.to_vec())
             .map_err(IntoHandlerError::into_handler_error)
             .and_then(|data| {
                 let store = Store::borrow_mut_from(&mut state);
-                store
-                    .put(data)
-                    .map(|key| key.into_response(&state))
-                    .map(|mut res| {
-                        *res.status_mut() = gotham::hyper::StatusCode::CREATED;
-                        res
-                    })
+                store.put(data).map(|key| {
+                    let mut response = key.into_response(&state);
+                    *response.status_mut() = hyper::StatusCode::CREATED;
+                    response
+                })
             }) {
             Ok(r) => Ok((state, r)),
             Err(e) => Err((state, e)),
@@ -152,6 +151,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::router;
+    use gotham::hyper;
     use gotham::test::TestServer;
 
     #[test]
@@ -163,8 +163,7 @@ mod tests {
             .perform()
             .unwrap();
 
-        // assert_eq!(response.status(), gotham::hyper::StatusCode::CREATED);
-        assert_eq!(response.status(), gotham::hyper::StatusCode::OK);
+        assert_eq!(response.status(), hyper::StatusCode::CREATED);
 
         let body = response.read_body().unwrap();
         assert_eq!(body.len(), 44);
@@ -190,7 +189,7 @@ mod tests {
             .perform()
             .unwrap();
 
-        assert_eq!(response.status(), gotham::hyper::StatusCode::OK);
+        assert_eq!(response.status(), hyper::StatusCode::OK);
 
         let body = response.read_body().unwrap();
         assert_eq!(&body[..], b"foo");
@@ -205,10 +204,7 @@ mod tests {
             .perform()
             .unwrap();
 
-        assert_eq!(
-            response.status(),
-            gotham::hyper::StatusCode::METHOD_NOT_ALLOWED
-        );
+        assert_eq!(response.status(), hyper::StatusCode::METHOD_NOT_ALLOWED);
 
         let body = response.read_body().unwrap();
         assert!(body.is_empty());
@@ -223,7 +219,7 @@ mod tests {
             .perform()
             .unwrap();
 
-        assert_eq!(response.status(), gotham::hyper::StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), hyper::StatusCode::BAD_REQUEST);
 
         let body = response.read_body().unwrap();
         assert!(body.is_empty());
@@ -238,7 +234,7 @@ mod tests {
             .perform()
             .unwrap();
 
-        assert_eq!(response.status(), gotham::hyper::StatusCode::NOT_FOUND);
+        assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
 
         let body = response.read_body().unwrap();
         assert!(body.is_empty());
