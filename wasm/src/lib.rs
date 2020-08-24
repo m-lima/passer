@@ -1,3 +1,11 @@
+#![deny(warnings, clippy::pedantic, clippy::all)]
+#![warn(rust_2018_idioms)]
+#![allow(clippy::missing_errors_doc)]
+// Allowed because it is wasm
+#![allow(clippy::must_use_candidate)]
+// Allowed because it is unsafe due to wasm
+#![allow(clippy::unsafe_derive_deserialize)]
+
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -61,7 +69,7 @@ impl Key {
         base64::encode(&self.key[..]).into()
     }
 
-    fn encrypt(&self, pack: Pack) -> Result<Encrypted, JsValue> {
+    fn encrypt(&self, pack: &Pack) -> Result<Encrypted, JsValue> {
         use aes_gcm::aead::{generic_array::GenericArray, Aead};
 
         let binary =
@@ -90,7 +98,7 @@ impl Key {
                 data,
             }
         };
-        self.encrypt(pack)
+        self.encrypt(&pack)
     }
 
     #[wasm_bindgen]
@@ -101,7 +109,7 @@ impl Key {
             size: data.len(),
             data: data.into(),
         };
-        self.encrypt(pack)
+        self.encrypt(&pack)
     }
 
     #[wasm_bindgen]
