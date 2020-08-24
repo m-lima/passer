@@ -99,7 +99,13 @@ fn post_handler(
             .map_err(IntoHandlerError::into_handler_error)
             .and_then(|data| {
                 let store = Store::borrow_mut_from(&mut state);
-                store.put(data).map(|key| key.into_response(&state))
+                store
+                    .put(data)
+                    .map(|key| key.into_response(&state))
+                    .map(|mut res| {
+                        *res.status_mut() = gotham::hyper::StatusCode::CREATED;
+                        res
+                    })
             }) {
             Ok(r) => Ok((state, r)),
             Err(e) => Err((state, e)),

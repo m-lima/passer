@@ -10,6 +10,7 @@ import {
   Progress,
 } from 'reactstrap'
 import { useDropzone } from 'react-dropzone'
+import { encode } from '@msgpack/msgpack'
 
 import './Encrypt.css'
 
@@ -115,6 +116,14 @@ const Encrypt = (props: IProps) => {
     onDrop: encryptFiles,
   })
 
+  const send = () => {
+    fetch('http://localhost:3030', {
+      method: 'POST',
+      redirect: 'follow',
+      body: encode(packs.map(p => p.data.payload())),
+    })
+  }
+
   const inputModal = () =>
     <Modal centered onOpened={setInputFocus} onClosed={() => setSecretText('')} isOpen={modal} toggle={toggleModal}>
       <ModalBody>
@@ -158,7 +167,7 @@ const Encrypt = (props: IProps) => {
       >
         <span className='enc-progresss-value'>{sizePercentage}{' %'}</span>
       </Progress>
-      <Button color='success' size='lg' block onClick={encryptText} disabled={totalSize > pack.MAX_SIZE}>Done</Button>
+      <Button color='success' size='lg' block onClick={send} disabled={totalSize > pack.MAX_SIZE}>Done</Button>
       <Button color='secondary' size='lg' block onClick={reset}>Clear</Button>
     </>
 
