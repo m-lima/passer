@@ -8,6 +8,49 @@ struct IdExtractor {
     id: String,
 }
 
+#[cfg(feature = "local-dev")]
+#[derive(Clone, gotham_derive::NewMiddleware)]
+struct CorsMiddleware;
+
+#[cfg(feature = "local-dev")]
+impl gotham::middleware::Middleware for CorsMiddleware {
+    fn call<C>(
+        self,
+        state: gotham::state::State,
+        chain: C,
+    ) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
+    where
+        C: FnOnce(gotham::state::State) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
+            + Send
+            + 'static,
+    {
+        Box::pin(async {
+            // use gotham::handler::IntoResponse;
+            chain(state).await.map(|(state, mut response)| {
+                {
+                    use gotham::state::FromState;
+
+                    // borrows from the state
+                    let path = hyper::Uri::borrow_from(&state);
+                    let method = hyper::Method::borrow_from(&state);
+
+                    // take references based on the response
+                    let status = response.status().as_u16();
+                    // log out
+                    println!("[{}] {} {}", status, method, path);
+                }
+
+                let header = response.headers_mut();
+                header.insert(
+                    hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+                    hyper::header::HeaderValue::from_static("http://localhost:3000"),
+                );
+                (state, response)
+            })
+        })
+    }
+}
+
 #[derive(Clone, Default, gotham_derive::StateData)]
 struct Store {
     secrets: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>>,
@@ -129,18 +172,27 @@ fn router() -> gotham::router::Router {
     use gotham::pipeline;
     use gotham::router::builder;
 
-    let store_middleware = StateMiddleware::new(Store::new());
-    let store_pipeline = pipeline::single_middleware(store_middleware);
-    let (chain, pipelines) = pipeline::single::single_pipeline(store_pipeline);
+    #[cfg(feature = "local-dev")]
+    let pipeline = pipeline::new_pipeline()
+        .add(CorsMiddleware)
+        .add(StateMiddleware::new(Store::new()))
+        .build();
+
+    #[cfg(not(feature = "local-dev"))]
+    let pipeline = pipeline::single_middleware(StateMiddleware::new(Store::new()));
+
+    let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
 
     builder::build_router(chain, pipelines, |route| {
         use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
 
+        #[cfg(feature = "local-dev")]
+        route.options("/").to(|state| (state, ""));
+        route.post("/").to(post_handler);
         route
             .get_or_head("/:id")
             .with_path_extractor::<IdExtractor>()
-            .to(get_handler);
-        route.post("/").to(post_handler)
+            .to(get_handler)
     })
 }
 

@@ -13,3 +13,6 @@ serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 mime = "0.3"
+
+[features]
+local-dev = []
