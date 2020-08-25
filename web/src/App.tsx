@@ -41,7 +41,7 @@ const App = () => {
 
   const footer = () =>
     <Footer>
-      Copyright © {new Date().getFullYear()} Marcelo Lima | Fonts provided by <a href='https://fontawesome.com/license'>Font Awesome</a> | Source code available on <a href='https://github.com/m-lima/passer'>GitHub</a>
+      Copyright © {new Date().getFullYear()} Marcelo Lima | Icons provided by <a href='https://fontawesome.com/license'>Font Awesome</a> | Source code available on <a href='https://github.com/m-lima/passer'>GitHub</a>
     </Footer>
 
   return (
