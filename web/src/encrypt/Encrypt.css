@@ -1,3 +1,8 @@
+.enc-container {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
 .enc-instruction {
   color: #aaaaaa;
   text-align: center;
@@ -6,8 +11,6 @@
 
 .enc-input {
   display: flex;
-  margin-top: 2rem;
-  margin-bottom: 2rem;
 }
 
 .enc-input-button {

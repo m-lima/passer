@@ -86,3 +86,5 @@ const yieldProcessing = () => {
 }
 
 const key = new passer.Key(generateRandom(44))
+
+export const keyString = () => key.to_string()

@@ -1,4 +1,4 @@
-$body-bg: #ddeeee;
+$body-bg: #eeeeee;
 
 // @import "node_modules/bootstrap/scss/bootstrap";
 
@@ -16,11 +16,12 @@ $body-bg: #ddeeee;
 @import "node_modules/bootstrap/scss/buttons";
 @import "node_modules/bootstrap/scss/forms";
 @import "node_modules/bootstrap/scss/grid";
+@import "node_modules/bootstrap/scss/input-group";
+@import "node_modules/bootstrap/scss/list-group";
 @import "node_modules/bootstrap/scss/modal";
 @import "node_modules/bootstrap/scss/navbar";
 @import "node_modules/bootstrap/scss/progress";
 @import "node_modules/bootstrap/scss/spinners";
-@import "node_modules/bootstrap/scss/list-group";
 
 .avoid-wrap {
   display: inline-block;

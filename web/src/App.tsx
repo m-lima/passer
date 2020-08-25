@@ -22,11 +22,13 @@ const App = () => {
 
   const navBar = () =>
     <Navbar color='dark' dark>
-      <NavbarBrand href='/'>
-        <img className='d-inline-block align-top' id='lock' src={lock} alt='' />
-        {' '}
-        Passer
-      </NavbarBrand>
+      <Container>
+        <NavbarBrand href='/'>
+          <img className='d-inline-block align-top' id='lock' src={lock} alt='' />
+          {' '}
+          Passer
+        </NavbarBrand>
+      </Container>
     </Navbar>
 
   const mainContent = () =>

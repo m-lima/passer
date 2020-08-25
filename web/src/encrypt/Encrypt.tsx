@@ -21,6 +21,7 @@ import { ReactComponent as SendText } from '../img/file-signature-solid.svg'
 import Alert from '../Alert'
 import Glyph from '../Glyph'
 import Loading from '../Loading'
+import Result from './Result'
 import * as pack from './Pack'
 
 class EncryptResult {
@@ -35,6 +36,16 @@ class EncryptResult {
   static reduce = (acc: EncryptResult, curr: Alert | pack.Encrypted) => {
     curr instanceof Alert ?  acc.alerts.push(curr) : acc.packs.push(curr)
     return acc
+  }
+}
+
+class UploadResult {
+  url: string
+  keyString: string
+
+  constructor(url: string, keyString: string) {
+    this.url = url
+    this.keyString = keyString
   }
 }
 
@@ -56,11 +67,12 @@ const Encrypt = (props: IProps) => {
     inputRef && inputRef.current && inputRef.current.focus()
   }
 
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState('')
   const [packs, setPacks] = useState<pack.Encrypted[]>([])
   const [totalSize, setTotalSize] = useState(0)
   const [modal, setModal] = useState(false)
   const [secretText, setSecretText] = useState('')
+  const [uploadResult, setUploadResult] = useState<UploadResult>()
 
   const sizePercentage = (totalSize * 100 / pack.MAX_SIZE).toFixed(1)
 
@@ -69,7 +81,7 @@ const Encrypt = (props: IProps) => {
   }
 
   const reset = () => {
-    setLoading(false)
+    setLoading('')
     setPacks([])
     props.setAlerts([])
   }
@@ -79,7 +91,7 @@ const Encrypt = (props: IProps) => {
       return
     }
 
-    setLoading(true)
+    setLoading('Encrypting')
 
     Promise.all(plains.map(pack.encrypt))
       .then(results => results.reduce(EncryptResult.reduce, new EncryptResult()))
@@ -98,7 +110,7 @@ const Encrypt = (props: IProps) => {
         setTotalSize(results.totalSize)
         props.setAlerts(results.alerts)
       })
-      .then(() => setLoading(false))
+      .then(() => setLoading(''))
   }
 
   const encryptText = () => {
@@ -117,11 +129,19 @@ const Encrypt = (props: IProps) => {
   })
 
   const send = () => {
+    setLoading('Uploading')
     fetch('http://localhost:3030', {
       method: 'POST',
       redirect: 'follow',
       body: encode(packs.map(p => p.data.payload())),
     })
+    .then(response => response.text())
+    .then(url => {
+      setUploadResult(new UploadResult(url, pack.keyString()))
+      props.setAlerts(Alert.SUCCESS_UPLOADING)
+    })
+    .catch(() => props.setAlerts([Alert.ERROR_UPLOADING]))
+    .then(() => setLoading(''))
   }
 
   const inputModal = () =>
@@ -173,7 +193,8 @@ const Encrypt = (props: IProps) => {
 
   const mainContent = () =>
     <>
-      <div className='enc-input'>
+      {inputModal()}
+      <div className='enc-container enc-input'>
         <div className='enc-input-button' id={isDragActive ? 'active' : ''} {...getRootProps()}>
           <input {...getInputProps()} />
           <SendFile style={{ paddingRight: '24px' }} className='enc-input-button-image' />
@@ -194,12 +215,13 @@ const Encrypt = (props: IProps) => {
       }
     </>
 
-  return (
-    <>
-      {inputModal()}
-      {loading ? <Loading /> : mainContent()}
-    </>
-  )
+  if (loading) {
+    return <Loading>{loading}</Loading>
+  } else if (uploadResult) {
+    return <Result {...uploadResult} />
+  } else {
+    return mainContent()
+  }
 }
 
 export default Encrypt

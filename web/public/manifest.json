@@ -20,6 +20,7 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#333333",
-  "background_color": "#cccccc"
+  "theme_color": "#cccccc",
+  "background_color": "#eeeeee",
+  "permissions": ["clipboardWrite"]
 }
