@@ -21,8 +21,6 @@ const Result = (props: IProps) => {
   const urlRef = useRef<HTMLInputElement>(null)
   const copyUrl = () => {
     if (urlRef && urlRef.current) {
-      console.log(urlRef)
-      console.log(urlRef.current)
       urlRef.current.select()
       document.execCommand('copy')
     }
@@ -31,8 +29,6 @@ const Result = (props: IProps) => {
   const keyRef = useRef<HTMLInputElement>(null)
   const copyKey = () => {
     if (keyRef && keyRef.current) {
-      console.log(keyRef)
-      console.log(keyRef.current)
       keyRef.current.select()
       document.execCommand('copy')
     }
