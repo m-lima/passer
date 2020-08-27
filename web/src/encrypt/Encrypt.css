@@ -17,7 +17,7 @@
   width: 100%;
   font-size: 2rem;
   text-align: center;
-  color: #157786;
+  color: var(--dark-info);
   cursor: pointer;
 }
 
@@ -56,16 +56,4 @@
   position: absolute;
   right: 0;
   left: 0;
-}
-
-.enc-list-group {
-  background-color: transparent;
-}
-
-.enc-list-group-pack {
-  display: flex;
-}
-
-.enc-list-group-pack * {
-  width: 100%;
 }

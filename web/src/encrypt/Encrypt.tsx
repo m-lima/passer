@@ -18,11 +18,12 @@ import lock from '../img/lock-solid.svg'
 import { ReactComponent as SendFile } from '../img/file-import-solid.svg'
 import { ReactComponent as SendText } from '../img/file-signature-solid.svg'
 
+import * as pack from './Pack'
+import * as util from '../Util'
 import Alert from '../Alert'
 import Glyph from '../Glyph'
 import Loading from '../Loading'
 import Result from './Result'
-import * as pack from './Pack'
 
 class EncryptResult {
   alerts: Alert[]
@@ -48,13 +49,6 @@ class UploadResult {
     this.keyString = keyString
   }
 }
-
-const sizeToString = (size: number) =>
-  size < 1024
-    ? `${size} B`
-    : size < 1024 * 1024
-      ? `${(size / 1024).toFixed(1)} KiB`
-      : `${(size / 1024 / 1024).toFixed(1)} MiB`
 
 interface IProps {
   setAlerts: Dispatch<SetStateAction<Alert[]>>
@@ -115,6 +109,7 @@ const Encrypt = (props: IProps) => {
 
   const encryptText = () => {
     toggleModal()
+    setSecretText('')
     encryptPacks([pack.plain(secretText)])
   }
 
@@ -165,13 +160,11 @@ const Encrypt = (props: IProps) => {
 
   const packItem = (pack: pack.Encrypted, key: number) =>
     <ListGroupItem key={key} className='enc-list-group'>
-      <div className='enc-list-group-pack'>
+      <div className='spread'>
         <Glyph src={lock}>
           {pack.name}
         </Glyph>
-        <span className='right-justify'>
-          {sizeToString(pack.size)}
-          </span>
+        <span>{util.sizeToString(pack.size)}</span>
       </div>
     </ListGroupItem>
 
@@ -211,6 +204,8 @@ const Encrypt = (props: IProps) => {
             <span className='avoid-wrap'>Encrypt data locally in your browser</span>
             {' '}
             <span className='avoid-wrap'>and share it securely</span>
+            {' '}
+            <a href='/'>How it works</a>
           </div>
       }
     </>

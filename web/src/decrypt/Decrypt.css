@@ -1,0 +1,9 @@
+.dec-container {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
+.dec-message {
+  font-size: 1.5rem;
+  color: var(--dark-info);
+}

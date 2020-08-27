@@ -1,5 +1,6 @@
 // TODO: Warning on reload (about to leave the page)
-// TODO: Click to dismiss alert
+// TODO: Decryption should be fake async 'kinda like Unpack.ts (Pack.ts for text)'
+// TODO; How it works page
 
 import React, { useState } from 'react'
 import {
@@ -7,12 +8,14 @@ import {
   Navbar,
   NavbarBrand,
 } from 'reactstrap'
+import { BrowserRouter as Router, Route } from 'react-router-dom'
 
 import './App.css'
 
 import Alert, { AlertBanner } from './Alert'
-import Footer from './Footer'
+import Decrypt from './decrypt/Decrypt'
 import Encrypt from './encrypt/Encrypt'
+import Footer from './Footer'
 
 import lock from './img/lock-optimized.svg'
 
@@ -32,12 +35,21 @@ const App = () => {
     </Navbar>
 
   const mainContent = () =>
-    <>
+    <Router>
       {alerts.map((alert, i) => <AlertBanner key={i} {...alert} />)}
       <Container role='main'>
-        <Encrypt setAlerts={setAlerts} />
+        <Route
+          path='/'
+          exact
+          render={() => <Encrypt setAlerts={setAlerts} />}
+        />
+        <Route
+          path='/s/:hash'
+          exact
+          render={() => <Decrypt setAlerts={setAlerts} />}
+        />
       </Container>
-    </>
+    </Router>
 
   const footer = () =>
     <Footer>
