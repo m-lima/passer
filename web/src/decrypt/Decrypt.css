@@ -7,3 +7,17 @@
   font-size: 1.5rem;
   color: var(--dark-info);
 }
+
+.dec-text-block {
+  background-color: white;
+}
+
+.dec-text-block > pre {
+  margin: 0;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  max-height: 10rem;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: var(--background);
+}

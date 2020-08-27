@@ -9,14 +9,16 @@ import {
   ListGroupItem,
 } from 'reactstrap'
 import { useParams } from 'react-router-dom'
-import { decode } from '@msgpack/msgpack'
 import * as passer from 'passer'
 
 import './Decrypt.css'
 
 import keyImg from '../img/key-solid.svg'
 import lock from '../img/lock-solid.svg'
+import file from '../img/file-solid.svg'
+import text from '../img/file-alt-solid.svg'
 
+import * as pack from './Pack'
 import * as util from '../Util'
 import Alert from '../Alert'
 import Glyph from '../Glyph'
@@ -30,11 +32,48 @@ enum Status {
   Decrypted,
 }
 
+const downloadURL = (data: string, fileName: string) => {
+  const a = document.createElement('a')
+  a.href = data
+  a.download = fileName
+  document.body.appendChild(a)
+  a.style.display = 'none'
+  a.click()
+  a.remove()
+}
+
+const download = (data: Uint8Array, fileName: string) => {
+  const blob = new Blob([data], {
+    type: 'application/octet-stream'
+  })
+
+  const url = window.URL.createObjectURL(blob)
+
+  downloadURL(url, fileName)
+
+  util.yieldProcessing().then(() => window.URL.revokeObjectURL(url))
+}
+
 const NotFound = () =>
   <div className='dec-container dec-message'>
     <h2>Not Found</h2>
     Make sure you have the corrent link
   </div>
+
+const result = (pack: passer.Pack, index: number) =>
+  pack.plain_message()
+    ? <ListGroupItem className='dec-text-block'>
+        <Glyph src={text}>{pack.name()}</Glyph>
+        <pre className='dec-text'>
+          {new TextDecoder().decode(pack.data())}
+        </pre>
+      </ListGroupItem>
+    : <ListGroupItem className='dec-text-block' tag='button' action onClick={() => download(pack.data(), pack.name())}>
+        <div className='spread'>
+          <Glyph src={file}>{pack.name()}</Glyph>
+          <span>{util.sizeToString(pack.size())}</span>
+        </div>
+      </ListGroupItem>
 
 interface IProps {
   setAlerts: Dispatch<SetStateAction<Alert[]>>
@@ -44,7 +83,7 @@ const Decrypt = (props: IProps) => {
 
   const [status, setStatus] = useState(Status.Downloading)
   const [key, setKey] = useState('')
-  const [data, setData] = useState<Uint8Array[] | passer.Pack[]>([])
+  const [data, setData] = useState<pack.Decoded | passer.Pack[]>([])
   const { hash } = useParams()
 
   useEffect(() => {
@@ -58,7 +97,7 @@ const Decrypt = (props: IProps) => {
         throw Status.NotFound
       }
     })
-    .then(payload => decode(payload) as Uint8Array[])
+    .then(pack.decode)
     .then(setData)
     .then(() => setStatus(Status.Downloaded))
     .catch(() => setStatus(Status.NotFound))
@@ -71,16 +110,16 @@ const Decrypt = (props: IProps) => {
 
     setStatus(Status.Decrypting)
 
-    var cipher
-    try {
-      const cipher = passer.Key.from_string(key)
-      setData((data as Uint8Array[]).map(datum => cipher.decrypt(datum)))
+    pack.decrypt(key, data as pack.Decoded)
+    .then(data => {
+      setData(data)
+      props.setAlerts(Alert.SUCCESS_DECRYPTING)
       setStatus(Status.Decrypted)
-    } catch (e) {
-      console.log(e)
+    })
+    .catch(() => {
       props.setAlerts([Alert.INVALID_KEY])
       setStatus(Status.Downloaded)
-    }
+    })
   }
 
   const KeyPrompt = () =>
@@ -121,11 +160,19 @@ const Decrypt = (props: IProps) => {
       </InputGroup>
     </div>
 
+  const Results = () =>
+    <div className='dec-container'>
+      <ListGroup flush>
+        {(data as passer.Pack[]).map(result)}
+      </ListGroup>
+    </div>
+
   switch (status) {
-    case Status.Downloading: return <Loading>Downloading</Loading>
     case Status.NotFound: return <NotFound />
     case Status.Downloaded: return <KeyPrompt />
-    default: return <KeyPrompt />
+    case Status.Decrypted: return <Results />
+    case Status.Decrypting: return <Loading>Decrypting</Loading>
+    default: case Status.Downloading: return <Loading>Downloading</Loading>
   }
 }
 

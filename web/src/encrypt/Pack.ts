@@ -1,6 +1,7 @@
 import * as passer from 'passer'
 
 import Alert from '../Alert'
+import * as util from '../Util'
 
 export const MAX_SIZE = 100 * 1024 * 1024 // 100 MiB
 
@@ -16,6 +17,7 @@ const generateRandomName = () => {
 }
 
 export interface Encrypted {
+  hash: string
   name: string
   size: number
   data: passer.Encrypted
@@ -30,13 +32,13 @@ export interface Plain {
 export const plain = (data: string | File) => {
   if (data instanceof File) {
     return {
-      name: `${generateRandomName()} (${data.name})`,
+      name: data.name,
       size: data.size,
       data,
     }
   } else {
     return {
-      name: `${generateRandomName()} (Text)`,
+      name: 'Text',
       size: data.length,
       data
     }
@@ -54,6 +56,7 @@ export const encrypt = async (pack: Plain) => {
       ? key.encrypt_file(pack.name, data)
       : key.encrypt_string(pack.name, data)
     return {
+      hash: generateRandomName(),
       name: pack.name,
       size: encrypted.payload().length,
       data: encrypted,
@@ -77,12 +80,8 @@ const extractData = async (pack: Plain) => {
       reader.readAsArrayBuffer(pack.data as File)
     })
   } else {
-    return yieldProcessing().then(() => pack.data as string)
+    return util.yieldProcessing().then(() => pack.data as string)
   }
-}
-
-const yieldProcessing = () => {
-  return new Promise(resolve => setTimeout(resolve, 10));
 }
 
 const key = new passer.Key(generateRandom(44))

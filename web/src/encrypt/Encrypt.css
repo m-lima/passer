@@ -57,3 +57,8 @@
   right: 0;
   left: 0;
 }
+
+.enc-remove {
+  color: var(--danger);
+  cursor: pointer;
+}

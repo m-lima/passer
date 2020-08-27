@@ -15,6 +15,7 @@ import { encode } from '@msgpack/msgpack'
 import './Encrypt.css'
 
 import lock from '../img/lock-solid.svg'
+import { ReactComponent as trash } from '../img/trash-alt-solid.svg'
 import { ReactComponent as SendFile } from '../img/file-import-solid.svg'
 import { ReactComponent as SendText } from '../img/file-signature-solid.svg'
 
@@ -123,6 +124,8 @@ const Encrypt = (props: IProps) => {
     onDrop: encryptFiles,
   })
 
+  const remove = (index: number) => setPacks(packs.filter((_, i) => i !== index))
+
   const send = () => {
     setLoading('Uploading')
     fetch('http://localhost:3030', {
@@ -159,12 +162,18 @@ const Encrypt = (props: IProps) => {
     </Modal>
 
   const packItem = (pack: pack.Encrypted, key: number) =>
-    <ListGroupItem key={key} className='enc-list-group'>
+    <ListGroupItem key={key}>
       <div className='spread'>
         <Glyph src={lock}>
-          {pack.name}
+          {`${pack.hash} (${pack.name})`}
         </Glyph>
-        <span>{util.sizeToString(pack.size)}</span>
+        <span>
+          {util.sizeToString(pack.size)}
+          {' '}
+          <span className='enc-remove' onClick={() => remove(key)}>
+            <Glyph src={trash} />
+          </span>
+        </span>
       </div>
     </ListGroupItem>
 
