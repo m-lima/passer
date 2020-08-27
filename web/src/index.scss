@@ -1,5 +1,9 @@
 $body-bg: #eeeeee;
 
+:root {
+  --dark-info: #157786;
+}
+
 // @import "node_modules/bootstrap/scss/bootstrap";
 
 // Core Bootstrap
@@ -29,4 +33,26 @@ $body-bg: #eeeeee;
 
 .right-justify {
   text-align: right;
+}
+
+.spread {
+  width: 100%;
+  display: inline-flex;
+}
+
+.spread > * {
+  text-align: center;
+  width: 100%;
+}
+
+.spread>*:first-child {
+  text-align: left;
+}
+
+.spread>*:last-child {
+  text-align: right;
+}
+
+.list-group-item {
+  background-color: transparent;
 }
