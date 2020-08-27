@@ -21,18 +21,17 @@ export class Alert implements IProps {
   static TOO_LARGE(name: string) {
     return  new Alert(`${name} is too big for encryption. Maximum 100 MB allowed.`, 'warning')
   }
-
-  static ERROR_ENCRYPTING(name: string) {
-    return new Alert(`${name} could not be encrypted.`, 'warning')
-  }
-
-  static ERROR_DECRYPTING(name: string) {
-    return new Alert(`${name} could not be decrypted.`, 'warning')
-  }
-
   static TOO_MUCH_DATA = new Alert('Too much data encrypted. Maximum 100 MB allowed.', 'danger')
   static ERROR_UPLOADING = new Alert('A problem occurred trying to upload.', 'danger')
   static SUCCESS_UPLOADING = [new Alert('Secret successfully uploaded.', 'success'), new Alert('The generated link can only be downloaded once so don\'t open it yourself.', 'info')]
+
+  static INVALID_KEY = new Alert('The encrypted key is invalid.', 'warning')
+  static ERROR_ENCRYPTING(name: string) {
+    return new Alert(`${name} could not be encrypted.`, 'warning')
+  }
+  static SUCCESS_DECRYPTING = new Alert('This page can only be opened once so don\'t forget to download all the files you need.', 'info')
+
+
   static UNKNOWN = new Alert('An error occured. Please reload the page.', 'danger')
 }
 
