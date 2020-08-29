@@ -25,11 +25,11 @@ import Glyph from '../Glyph'
 import Loading from '../Loading'
 
 enum Status {
-  Downloading,
-  NotFound,
-  Downloaded,
-  Decrypting,
-  Decrypted,
+  DOWNLOADING,
+  NOT_FOUND,
+  DOWNLOADED,
+  DECRYPTING,
+  DECRYPTED,
 }
 
 const downloadURL = (data: string, fileName: string) => {
@@ -55,7 +55,7 @@ const download = (data: Uint8Array, fileName: string) => {
 }
 
 const NotFound = () =>
-  <div className='dec-container dec-message'>
+  <div className='dec-message'>
     <h2>Not Found</h2>
     Make sure you have the corrent link
   </div>
@@ -81,7 +81,7 @@ interface IProps {
 
 const Decrypt = (props: IProps) => {
 
-  const [status, setStatus] = useState(Status.Downloading)
+  const [status, setStatus] = useState(Status.DOWNLOADING)
   const [key, setKey] = useState('')
   const [data, setData] = useState<pack.Decoded | passer.Pack[]>([])
   const { hash } = useParams()
@@ -94,31 +94,31 @@ const Decrypt = (props: IProps) => {
       if (response.ok) {
         return response.arrayBuffer()
       } else {
-        throw Status.NotFound
+        throw Status.NOT_FOUND
       }
     })
     .then(pack.decode)
     .then(setData)
-    .then(() => setStatus(Status.Downloaded))
-    .catch(() => setStatus(Status.NotFound))
+    .then(() => setStatus(Status.DOWNLOADED))
+    .catch(() => setStatus(Status.NOT_FOUND))
   }, [hash])
 
   const decrypt = () => {
-    if (status !== Status.Downloaded) {
+    if (status !== Status.DOWNLOADED) {
       return
     }
 
-    setStatus(Status.Decrypting)
+    setStatus(Status.DECRYPTING)
 
     pack.decrypt(key, data as pack.Decoded)
     .then(data => {
       setData(data)
       props.setAlerts(Alert.SUCCESS_DECRYPTING)
-      setStatus(Status.Decrypted)
+      setStatus(Status.DECRYPTED)
     })
     .catch(() => {
       props.setAlerts([Alert.INVALID_KEY])
-      setStatus(Status.Downloaded)
+      setStatus(Status.DOWNLOADED)
     })
   }
 
@@ -168,11 +168,11 @@ const Decrypt = (props: IProps) => {
     </div>
 
   switch (status) {
-    case Status.NotFound: return <NotFound />
-    case Status.Downloaded: return <KeyPrompt />
-    case Status.Decrypted: return <Results />
-    case Status.Decrypting: return <Loading>Decrypting</Loading>
-    default: case Status.Downloading: return <Loading>Downloading</Loading>
+    case Status.NOT_FOUND: return <NotFound />
+    case Status.DOWNLOADED: return <KeyPrompt />
+    case Status.DECRYPTED: return <Results />
+    case Status.DECRYPTING: return <Loading>Decrypting</Loading>
+    default: case Status.DOWNLOADING: return <Loading>Downloading</Loading>
   }
 }
 

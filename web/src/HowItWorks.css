@@ -1,0 +1,20 @@
+.hiw-row:not(:last-child) {
+  border-bottom-width: 1px;
+  border-bottom-color: var(--divider);
+  border-bottom-style: solid;
+}
+
+.hiw-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.hiw-pill {
+  color: #3966a0;
+}
+
+.hiw-pill.active {
+  color: #ffffff;
+  background-color: #3966a0;
+}

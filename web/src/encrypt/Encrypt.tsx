@@ -9,6 +9,7 @@ import {
   ModalFooter,
   Progress,
 } from 'reactstrap'
+import { Link } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
 import { encode } from '@msgpack/msgpack'
 
@@ -196,7 +197,7 @@ const Encrypt = (props: IProps) => {
   const mainContent = () =>
     <>
       {inputModal()}
-      <div className='enc-container enc-input'>
+      <div className='enc-input'>
         <div className='enc-input-button' id={isDragActive ? 'active' : ''} {...getRootProps()}>
           <input {...getInputProps()} />
           <SendFile style={{ paddingRight: '24px' }} className='enc-input-button-image' />
@@ -213,8 +214,12 @@ const Encrypt = (props: IProps) => {
             <span className='avoid-wrap'>Encrypt data locally in your browser</span>
             {' '}
             <span className='avoid-wrap'>and share it securely</span>
-            {' '}
-            <a href='/'>How it works</a>
+            <br />
+            <div>
+              <Link to='/howitworks'>
+                How it works
+              </Link>
+            </div>
           </div>
       }
     </>

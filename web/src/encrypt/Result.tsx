@@ -35,7 +35,7 @@ const Result = (props: IProps) => {
   }
 
   return (
-    <div className='enc-container'>
+    <>
       <div className='result-block'>
         <h6>Link</h6>
         <InputGroup>
@@ -63,7 +63,7 @@ const Result = (props: IProps) => {
       <div className='result-block'>
         <Button color='success' size='lg' block href='/'>Encrypt more</Button>
       </div>
-    </div>
+    </>
   )
 }
 
