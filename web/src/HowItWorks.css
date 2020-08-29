@@ -4,10 +4,22 @@
   border-bottom-style: solid;
 }
 
+.hiw-img {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+}
+
+.hiw-img > * {
+  min-height: 0;
+  min-width: 0;
+}
+
 .hiw-text {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  margin-bottom: 1rem;
 }
 
 .hiw-pill {

@@ -29,7 +29,7 @@ const encryptionItems = [
   },
   {
     src: enc2,
-    header: 'Context is immediately encrypted',
+    header: 'Content is immediately encrypted',
     caption: 'A 352-bit key is generated and used for encryption as soon as content is loaded',
   },
   {
@@ -93,10 +93,10 @@ interface Step {
 
 const renderStep = (step: Step, index: number) =>
   <Row className='hiw-row' key={index}>
-    <Col sm='6'>
+    <Col xl='6' lg='12' className='hiw-img'>
       <img src={step.src} alt='' />
     </Col>
-    <Col sm='6' className='hiw-text'>
+    <Col className='hiw-text'>
       <h4>{step.header}</h4>
       {step.caption}
     </Col>
