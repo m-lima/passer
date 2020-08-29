@@ -25,7 +25,8 @@ impl gotham::middleware::Middleware for CorsMiddleware {
             + 'static,
     {
         Box::pin(async {
-            // use gotham::handler::IntoResponse;
+            // Allowed because this is third-party code being flagged
+            #[allow(clippy::used_underscore_binding)]
             chain(state).await.map(|(state, mut response)| {
                 {
                     use gotham::state::FromState;
@@ -183,7 +184,7 @@ fn router() -> gotham::router::Router {
 
     let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
 
-    builder::build_router(chain, pipelines, |route| {
+    let routes = builder::build_router(chain, pipelines, |route| {
         use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
 
         #[cfg(feature = "local-dev")]
@@ -193,11 +194,25 @@ fn router() -> gotham::router::Router {
             .get_or_head("/:id")
             .with_path_extractor::<IdExtractor>()
             .to(get_handler)
-    })
+    });
+
+    println!("Configuration complete");
+    println!("Server started");
+    routes
 }
 
 fn main() {
-    gotham::start_with_num_threads("0.0.0.0:3030", router(), 1);
+    let port = std::env::args()
+        .nth(1)
+        .map_or(Ok(80_u16), |port| port.parse::<u16>())
+        .unwrap_or_else(|e| {
+            eprintln!("Inalid port: {}", e);
+            std::process::exit(-1)
+        });
+
+    let host = format!("0.0.0.0:{}", port);
+    println!("Serving on http://{}", host);
+    gotham::start_with_num_threads(host, router(), 1);
 }
 
 #[cfg(test)]
