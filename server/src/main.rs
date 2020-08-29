@@ -51,11 +51,6 @@ impl gotham::middleware::Middleware for CorsMiddleware {
     }
 }
 
-#[derive(Clone, Default, gotham_derive::StateData)]
-struct Store {
-    secrets: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>>,
-}
-
 #[derive(Debug)]
 enum Error {
     FailedToAcquireStore,
@@ -73,6 +68,11 @@ impl std::fmt::Display for Error {
             Self::NothingToInsert => write!(fmt, "nothing to insert"),
         }
     }
+}
+
+#[derive(Clone, Default, gotham_derive::StateData)]
+struct Store {
+    secrets: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>>,
 }
 
 impl Store {
