@@ -21,4 +21,5 @@ RUN npm install
 # Build
 COPY src src
 COPY public public
+COPY cfg/Config.ts src/Config.ts
 RUN npm run build
