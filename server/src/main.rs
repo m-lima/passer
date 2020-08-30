@@ -3,11 +3,16 @@
 
 use gotham::hyper;
 
+static MAX_LENGTH: usize = 110 * 1024 * 1024;
+static MAX_STORE_SIZE: usize = 10;
+
 #[derive(Debug)]
 enum Error {
     FailedToAcquireStore,
     SecretNotFound,
     NothingToInsert,
+    TooLarge,
+    StoreFull,
 }
 
 impl std::error::Error for Error {}
@@ -18,6 +23,8 @@ impl std::fmt::Display for Error {
             Self::FailedToAcquireStore => write!(fmt, "failed to acquire store"),
             Self::SecretNotFound => write!(fmt, "secret not found"),
             Self::NothingToInsert => write!(fmt, "nothing to insert"),
+            Self::TooLarge => write!(fmt, "payload too large"),
+            Self::StoreFull => write!(fmt, "store is full"),
         }
     }
 }
@@ -128,16 +135,28 @@ impl Store {
                 .with_status(hyper::StatusCode::BAD_REQUEST));
         }
 
-        if let Ok(mut map) = self.secrets.lock() {
-            let key = loop {
-                let key = Self::new_key();
-                if !map.contains_key(&key) {
-                    break key;
-                }
-            };
+        if data.len() > MAX_LENGTH {
+            return Err(Error::TooLarge
+                .into_handler_error()
+                .with_status(hyper::StatusCode::PAYLOAD_TOO_LARGE));
+        }
 
-            map.insert(key.clone(), data);
-            Ok(key)
+        if let Ok(mut map) = self.secrets.lock() {
+            if map.len() > MAX_STORE_SIZE {
+                Err(Error::StoreFull
+                    .into_handler_error()
+                    .with_status(hyper::StatusCode::CONFLICT))
+            } else {
+                let key = loop {
+                    let key = Self::new_key();
+                    if !map.contains_key(&key) {
+                        break key;
+                    }
+                };
+
+                map.insert(key.clone(), data);
+                Ok(key)
+            }
         } else {
             Err(Error::FailedToAcquireStore.into_handler_error())
         }
