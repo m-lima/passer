@@ -16,3 +16,6 @@ simplelog = "0.8"
 
 [dev-dependencies]
 mime = "0.3"
+
+[features]
+host-frontend = []

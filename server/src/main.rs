@@ -6,6 +6,20 @@ use gotham::hyper;
 mod middleware;
 mod options;
 
+#[cfg(not(feature = "host-frontend"))]
+macro_rules! path {
+    ($($path:literal)?) => {
+        concat!("/", $($path)?)
+    };
+}
+
+#[cfg(feature = "host-frontend")]
+macro_rules! path {
+    ($($path:literal)?) => {
+        concat!("/api/", $($path)?)
+    };
+}
+
 #[derive(Debug)]
 enum Error {
     FailedToAcquireStore,
@@ -92,9 +106,9 @@ fn router() -> gotham::router::Router {
     builder::build_router(chain, pipelines, |route| {
         use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
 
-        route.post("/").to(post_handler);
+        route.post(path!()).to(post_handler);
         route
-            .get_or_head("/:id")
+            .get_or_head(path!(":id"))
             .with_path_extractor::<IdExtractor>()
             .to(get_handler)
     })
@@ -116,10 +130,10 @@ fn router_with_cors(cors: hyper::header::HeaderValue) -> gotham::router::Router 
     builder::build_router(chain, pipelines, |route| {
         use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
 
-        route.options("/").to(|state| (state, ""));
-        route.post("/").to(post_handler);
+        route.options(path!()).to(|state| (state, ""));
+        route.post(path!()).to(post_handler);
         route
-            .get_or_head("/:id")
+            .get_or_head(path!(":id"))
             .with_path_extractor::<IdExtractor>()
             .to(get_handler)
     })
@@ -168,12 +182,58 @@ mod tests {
     use gotham::hyper;
     use gotham::test::TestServer;
 
+    macro_rules! host_path {
+        ($($path:literal)?) => {
+            concat!("http://localhost", path!($($path)?))
+        };
+    }
+
+    #[test]
+    fn path() {
+        {
+            let path = path!();
+
+            #[cfg(not(feature = "host-frontend"))]
+            assert_eq!(path, "/");
+            #[cfg(feature = "host-frontend")]
+            assert_eq!(path, "/api/");
+        }
+        {
+            let path = path!("foo/bar");
+
+            #[cfg(not(feature = "host-frontend"))]
+            assert_eq!(path, "/foo/bar");
+            #[cfg(feature = "host-frontend")]
+            assert_eq!(path, "/api/foo/bar");
+        }
+    }
+
+    #[test]
+    fn host_path() {
+        {
+            let path = host_path!();
+
+            #[cfg(not(feature = "host-frontend"))]
+            assert_eq!(path, "http://localhost/");
+            #[cfg(feature = "host-frontend")]
+            assert_eq!(path, "http://localhost/api/");
+        }
+        {
+            let path = host_path!("foo/bar");
+
+            #[cfg(not(feature = "host-frontend"))]
+            assert_eq!(path, "http://localhost/foo/bar");
+            #[cfg(feature = "host-frontend")]
+            assert_eq!(path, "http://localhost/api/foo/bar");
+        }
+    }
+
     #[test]
     fn post_secret() {
         let test_server = TestServer::new(router()).unwrap();
         let response = test_server
             .client()
-            .post("http://localhost", "foo", mime::TEXT_PLAIN)
+            .post(host_path!(), "foo", mime::TEXT_PLAIN)
             .perform()
             .unwrap();
 
@@ -188,7 +248,7 @@ mod tests {
         let test_server = TestServer::new(router()).unwrap();
         let response = test_server
             .client()
-            .post("http://localhost", "foo", mime::TEXT_PLAIN)
+            .post(host_path!(), "foo", mime::TEXT_PLAIN)
             .perform()
             .unwrap();
 
@@ -197,7 +257,7 @@ mod tests {
         let response = test_server
             .client()
             .get(format!(
-                "http://localhost/{}",
+                concat!(host_path!(), "{}"),
                 key.into_iter().map(|c| c as char).collect::<String>()
             ))
             .perform()
@@ -214,7 +274,7 @@ mod tests {
         let test_server = TestServer::new(router()).unwrap();
         let response = test_server
             .client()
-            .post("http://localhost/my_key", "foo", mime::TEXT_PLAIN)
+            .post(host_path!("my_key"), "foo", mime::TEXT_PLAIN)
             .perform()
             .unwrap();
 
@@ -229,7 +289,7 @@ mod tests {
         let test_server = TestServer::new(router()).unwrap();
         let response = test_server
             .client()
-            .post("http://localhost", "", mime::TEXT_PLAIN)
+            .post(host_path!(), "", mime::TEXT_PLAIN)
             .perform()
             .unwrap();
 
@@ -244,7 +304,7 @@ mod tests {
         let test_server = TestServer::new(router()).unwrap();
         let response = test_server
             .client()
-            .get("http://localhost/foo")
+            .get(host_path!("foo"))
             .perform()
             .unwrap();
 
@@ -259,7 +319,7 @@ mod tests {
         let test_server = TestServer::new(router()).unwrap();
         let response = test_server
             .client()
-            .get("http://localhost/foo")
+            .get(host_path!("foo"))
             .perform()
             .unwrap();
 
@@ -278,7 +338,7 @@ mod tests {
         .unwrap();
         let response = test_server
             .client()
-            .get("http://localhost/foo")
+            .get(host_path!("foo"))
             .perform()
             .unwrap();
 
