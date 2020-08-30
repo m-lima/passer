@@ -98,7 +98,13 @@ const Decrypt = (props: IProps) => {
     fetch(`${config.API}${hash}`, {
       redirect: 'follow',
     })
-    .then(response => response.arrayBuffer())
+    .then(response => {
+      if (response.ok) {
+        return response.arrayBuffer()
+      } else {
+        throw Status.NOT_FOUND
+      }
+    })
     .catch(() => { throw Status.NOT_FOUND })
     .then(data => { try { return pack.decode(data) } catch { throw Status.CORRUPTED } })
     .then(setData)

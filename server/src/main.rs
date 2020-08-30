@@ -47,24 +47,57 @@ impl gotham::middleware::Middleware for CorsMiddleware {
             // Allowed because this is third-party code being flagged
             #[allow(clippy::used_underscore_binding)]
             chain(state).await.map(|(state, mut response)| {
-                {
-                    use gotham::state::FromState;
-
-                    // borrows from the state
-                    let path = hyper::Uri::borrow_from(&state);
-                    let method = hyper::Method::borrow_from(&state);
-
-                    // take references based on the response
-                    let status = response.status().as_u16();
-                    // log out
-                    println!("[{}] {} {}", status, method, path);
-                }
-
                 let header = response.headers_mut();
                 header.insert(
                     hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN,
                     hyper::header::HeaderValue::from_static("http://localhost:3000"),
                 );
+                (state, response)
+            })
+        })
+    }
+}
+
+#[derive(Clone, gotham_derive::NewMiddleware)]
+struct LogMiddleware;
+
+impl gotham::middleware::Middleware for LogMiddleware {
+    fn call<C>(
+        self,
+        state: gotham::state::State,
+        chain: C,
+    ) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
+    where
+        C: FnOnce(gotham::state::State) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
+            + Send
+            + 'static,
+    {
+        Box::pin(async {
+            // Allowed because this is third-party code being flagged
+            #[allow(clippy::used_underscore_binding)]
+            chain(state).await.map(|(state, response)| {
+                {
+                    use gotham::state::FromState;
+
+                    let ip = gotham::state::client_addr(&state)
+                        .map(|addr| addr.ip().to_string())
+                        .unwrap_or_else(|| String::from("??"));
+
+                    // Request info
+                    let path = hyper::Uri::borrow_from(&state);
+                    let method = hyper::Method::borrow_from(&state);
+                    let length = hyper::HeaderMap::borrow_from(&state)
+                        .get(hyper::header::CONTENT_LENGTH)
+                        .and_then(|len| len.to_str().ok())
+                        .unwrap_or("");
+
+                    // Response info
+                    let status = response.status().as_u16();
+
+                    // Log out
+                    log::info!("{} {} - {} {} {}", status, ip, method, path, length);
+                }
+
                 (state, response)
             })
         })
@@ -173,14 +206,14 @@ fn router() -> gotham::router::Router {
     use gotham::pipeline;
     use gotham::router::builder;
 
-    #[cfg(feature = "local-dev")]
     let pipeline = pipeline::new_pipeline()
-        .add(CorsMiddleware)
-        .add(StateMiddleware::new(Store::new()))
-        .build();
+        .add(LogMiddleware)
+        .add(StateMiddleware::new(Store::new()));
 
+    #[cfg(feature = "local-dev")]
+    let pipeline = pipeline.add(CorsMiddleware).build();
     #[cfg(not(feature = "local-dev"))]
-    let pipeline = pipeline::single_middleware(StateMiddleware::new(Store::new()));
+    let pipeline = pipeline.build();
 
     let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
 
@@ -196,21 +229,33 @@ fn router() -> gotham::router::Router {
             .to(get_handler)
     });
 
-    println!("Configuration complete");
-    println!("Server started");
     routes
 }
 
+fn init_logger() {
+    let config = simplelog::ConfigBuilder::new()
+        .set_time_format_str("%Y-%m-%dT%H:%M:%SZ")
+        .build();
+
+    simplelog::TermLogger::init(
+        simplelog::LevelFilter::Info,
+        config,
+        simplelog::TerminalMode::Mixed,
+    )
+    .expect("Could not initialize logger");
+}
+
 fn main() {
+    init_logger();
+
     let port = std::env::args()
         .nth(1)
         .map_or(Ok(80_u16), |port| port.parse::<u16>())
         .unwrap_or_else(|e| {
-            eprintln!("Inalid port: {}", e);
+            log::error!("Inalid port: {}", e);
             std::process::exit(-1)
         });
 
-    println!("Using port {}", port);
     gotham::start_with_num_threads(format!("0.0.0.0:{}", port), router(), 1);
 }
 
