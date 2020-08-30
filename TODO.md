@@ -10,3 +10,4 @@
 ## Web
 [ ] Support keypairs
 [ ] Warn before leaving if content is waiting for upload
+[ ] Load wasm natively with CRA
