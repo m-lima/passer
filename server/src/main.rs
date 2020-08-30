@@ -3,10 +3,8 @@
 
 use gotham::hyper;
 
+mod middleware;
 mod options;
-
-static MAX_LENGTH: usize = 110 * 1024 * 1024;
-static MAX_STORE_SIZE: usize = 10;
 
 #[derive(Debug)]
 enum Error {
@@ -36,144 +34,6 @@ struct IdExtractor {
     id: String,
 }
 
-#[derive(Clone, gotham_derive::NewMiddleware)]
-struct CorsMiddleware(hyper::header::HeaderValue);
-
-impl gotham::middleware::Middleware for CorsMiddleware {
-    fn call<C>(
-        self,
-        state: gotham::state::State,
-        chain: C,
-    ) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
-    where
-        C: FnOnce(gotham::state::State) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
-            + Send
-            + 'static,
-    {
-        Box::pin(async {
-            // Allowed because this is third-party code being flagged
-            #[allow(clippy::used_underscore_binding)]
-            chain(state).await.map(|(state, mut response)| {
-                let header = response.headers_mut();
-                header.insert(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN, self.0);
-                (state, response)
-            })
-        })
-    }
-}
-
-#[derive(Clone, gotham_derive::NewMiddleware)]
-struct LogMiddleware;
-
-impl gotham::middleware::Middleware for LogMiddleware {
-    fn call<C>(
-        self,
-        state: gotham::state::State,
-        chain: C,
-    ) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
-    where
-        C: FnOnce(gotham::state::State) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
-            + Send
-            + 'static,
-    {
-        Box::pin(async {
-            // Allowed because this is third-party code being flagged
-            #[allow(clippy::used_underscore_binding)]
-            chain(state).await.map(|(state, response)| {
-                {
-                    use gotham::state::FromState;
-
-                    let ip = gotham::state::client_addr(&state)
-                        .map(|addr| addr.ip().to_string())
-                        .unwrap_or_else(|| String::from("??"));
-
-                    // Request info
-                    let path = hyper::Uri::borrow_from(&state);
-                    let method = hyper::Method::borrow_from(&state);
-                    let length = hyper::HeaderMap::borrow_from(&state)
-                        .get(hyper::header::CONTENT_LENGTH)
-                        .and_then(|len| len.to_str().ok())
-                        .unwrap_or("");
-
-                    // Response info
-                    let status = response.status().as_u16();
-
-                    // Log out
-                    log::info!("{} {} - {} {} {}", status, ip, method, path, length);
-                }
-
-                (state, response)
-            })
-        })
-    }
-}
-
-#[derive(Clone, Default, gotham_derive::StateData)]
-struct Store {
-    secrets: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>>,
-}
-
-impl Store {
-    fn new() -> Self {
-        Self::default()
-    }
-
-    fn new_key() -> String {
-        use rand::Rng;
-        base64::encode_config(rand::thread_rng().gen::<[u8; 32]>(), base64::URL_SAFE)
-    }
-
-    fn put(&mut self, data: Vec<u8>) -> Result<String, gotham::handler::HandlerError> {
-        use gotham::handler::IntoHandlerError;
-
-        if data.is_empty() {
-            return Err(Error::NothingToInsert
-                .into_handler_error()
-                .with_status(hyper::StatusCode::BAD_REQUEST));
-        }
-
-        if data.len() > MAX_LENGTH {
-            return Err(Error::TooLarge
-                .into_handler_error()
-                .with_status(hyper::StatusCode::PAYLOAD_TOO_LARGE));
-        }
-
-        if let Ok(mut map) = self.secrets.lock() {
-            if map.len() > MAX_STORE_SIZE {
-                Err(Error::StoreFull
-                    .into_handler_error()
-                    .with_status(hyper::StatusCode::CONFLICT))
-            } else {
-                let key = loop {
-                    let key = Self::new_key();
-                    if !map.contains_key(&key) {
-                        break key;
-                    }
-                };
-
-                map.insert(key.clone(), data);
-                Ok(key)
-            }
-        } else {
-            Err(Error::FailedToAcquireStore.into_handler_error())
-        }
-    }
-
-    fn get(&mut self, key: &str) -> Result<Vec<u8>, gotham::handler::HandlerError> {
-        use gotham::handler::IntoHandlerError;
-        self.secrets
-            .lock()
-            .map_err(|_| Error::FailedToAcquireStore.into_handler_error())
-            .and_then(|mut map| {
-                map.remove(key).ok_or_else(|| {
-                    Error::SecretNotFound
-                        .into_handler_error()
-                        .with_status(hyper::StatusCode::NOT_FOUND)
-                })
-            })
-    }
-}
-
 fn get_handler(
     mut state: gotham::state::State,
 ) -> (gotham::state::State, hyper::Response<hyper::Body>) {
@@ -181,7 +41,7 @@ fn get_handler(
     use gotham::state::FromState;
 
     let id = { IdExtractor::take_from(&mut state).id };
-    let store = Store::borrow_mut_from(&mut state);
+    let store = middleware::Store::borrow_mut_from(&mut state);
 
     let response = store
         .get(&id)
@@ -204,7 +64,7 @@ fn post_handler(
             .map(|b| b.to_vec())
             .map_err(IntoHandlerError::into_handler_error)
             .and_then(|data| {
-                let store = Store::borrow_mut_from(&mut state);
+                let store = middleware::Store::borrow_mut_from(&mut state);
                 store.put(data).map(|key| {
                     let mut response = key.into_response(&state);
                     *response.status_mut() = hyper::StatusCode::CREATED;
@@ -223,13 +83,13 @@ fn router() -> gotham::router::Router {
     use gotham::router::builder;
 
     let pipeline = pipeline::new_pipeline()
-        .add(LogMiddleware)
-        .add(StateMiddleware::new(Store::new()))
+        .add(middleware::Log)
+        .add(StateMiddleware::new(middleware::Store::new()))
         .build();
 
     let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
 
-    let routes = builder::build_router(chain, pipelines, |route| {
+    builder::build_router(chain, pipelines, |route| {
         use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
 
         route.post("/").to(post_handler);
@@ -237,9 +97,7 @@ fn router() -> gotham::router::Router {
             .get_or_head("/:id")
             .with_path_extractor::<IdExtractor>()
             .to(get_handler)
-    });
-
-    routes
+    })
 }
 
 fn router_with_cors(cors: hyper::header::HeaderValue) -> gotham::router::Router {
@@ -248,14 +106,14 @@ fn router_with_cors(cors: hyper::header::HeaderValue) -> gotham::router::Router 
     use gotham::router::builder;
 
     let pipeline = pipeline::new_pipeline()
-        .add(LogMiddleware)
-        .add(StateMiddleware::new(Store::new()))
-        .add(CorsMiddleware(cors))
+        .add(middleware::Log)
+        .add(StateMiddleware::new(middleware::Store::new()))
+        .add(middleware::Cors::new(cors))
         .build();
 
     let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
 
-    let routes = builder::build_router(chain, pipelines, |route| {
+    builder::build_router(chain, pipelines, |route| {
         use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
 
         route.options("/").to(|state| (state, ""));
@@ -264,9 +122,7 @@ fn router_with_cors(cors: hyper::header::HeaderValue) -> gotham::router::Router 
             .get_or_head("/:id")
             .with_path_extractor::<IdExtractor>()
             .to(get_handler)
-    });
-
-    routes
+    })
 }
 
 fn init_logger() {
