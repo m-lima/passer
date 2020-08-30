@@ -6,7 +6,7 @@ import {
   Navbar,
   NavbarBrand,
 } from 'reactstrap'
-import { BrowserRouter as Router, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Route, Switch } from 'react-router-dom'
 
 import './App.css'
 
@@ -38,21 +38,22 @@ const App = () => {
     <Router>
       {alerts.map((alert, i) => <AlertBanner key={i} {...alert} />)}
       <Container className='app-container' role='main'>
-        <Route
-          path={config.Path.ENCRYPT}
-          exact
-          render={() => <Encrypt setAlerts={setAlerts} />}
-        />
-        <Route
-          path={config.Path.DECRYPT + ':hash'}
-          exact
-          render={() => <Decrypt setAlerts={setAlerts} />}
-        />
-        <Route
-          path={config.Path.HOW_IT_WORKS}
-          exact
-          component={HowItWorks}
-        />
+        <Switch>
+          <Route
+            path={config.Path.DECRYPT + ':hash'}
+            exact
+            render={() => <Decrypt setAlerts={setAlerts} />}
+          />
+          <Route
+            path={config.Path.HOW_IT_WORKS}
+            exact
+            component={HowItWorks}
+          />
+          <Route
+            path={config.Path.ENCRYPT}
+            render={() => <Encrypt setAlerts={setAlerts} />}
+          />
+        </Switch>
       </Container>
     </Router>
 
