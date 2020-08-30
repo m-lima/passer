@@ -45,14 +45,14 @@ const encryptionItems = [
   {
     src: enc5,
     header: 'The browser returns both the identifier and the key',
-    caption: 'Both is needed to access and decrypt the file. The server will delete the data after first download or if it expires',
+    caption: 'Both are needed to access and decrypt the content. The server will delete the data after first download or if it expires',
   },
 ]
 
 const decryptionItems = [
   {
     src: dec1,
-    header: 'An identifier is requested to the browser',
+    header: 'An identifier is requested',
     caption: 'The 352-bit identifier only refers to a pack of encrypted bytes in the server',
   },
   {
@@ -71,7 +71,7 @@ const decryptionItems = [
   },
   {
     src: dec5,
-    header: 'The encrypted data is kept loaded in the browser',
+    header: 'The decrypted data is kept loaded in the browser',
   },
   {
     src: dec6,
