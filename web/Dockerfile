@@ -11,7 +11,7 @@ RUN wasm-pack build
 
 ## Typescript
 FROM node
-WORKDIR /src
+WORKDIR /web
 
 # Dependencies
 COPY --from=wasm /src/pkg wasm/pkg
