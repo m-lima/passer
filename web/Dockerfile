@@ -10,7 +10,7 @@ COPY wasm .
 RUN wasm-pack build
 
 ## Typescript
-FROM node
+FROM node as web
 WORKDIR /web
 
 # Dependencies
@@ -23,3 +23,7 @@ COPY src src
 COPY public public
 COPY cfg/Config.ts src/Config.ts
 RUN npm run build
+
+## Pack
+FROM alpine
+COPY --from=web /web/build /web/build
