@@ -24,7 +24,7 @@ export class Alert implements IProps {
   static readonly ERROR_UPLOADING = new Alert('A problem occurred trying to upload.', 'danger')
   static readonly SUCCESS_UPLOADING = [new Alert('Secret successfully uploaded.', 'success'), new Alert('The generated link can only be downloaded once so don\'t open it yourself.', 'info')]
 
-  static readonly INVALID_KEY = new Alert('The encrypted key is invalid.', 'warning')
+  static readonly INVALID_KEY = new Alert('The decryption key is invalid.', 'warning')
   static readonly SUCCESS_DECRYPTING = [new Alert('Secret successfully decrypted.', 'success'), new Alert('This page can only be opened once so don\'t forget to download all the files you need.', 'info')]
 
   static readonly UNKNOWN = new Alert('An error occured. Please reload the page.', 'danger')
