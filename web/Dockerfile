@@ -6,7 +6,7 @@ WORKDIR /src
 RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
 # Build
-COPY wasm/passer .
+COPY wasm .
 RUN wasm-pack build
 
 ## Typescript
@@ -14,7 +14,7 @@ FROM node
 WORKDIR /src
 
 # Dependencies
-COPY --from=wasm /src/pkg wasm/passer/pkg
+COPY --from=wasm /src/pkg wasm/pkg
 COPY package.json package-lock.json tsconfig.json config-overrides.js ./
 RUN npm install
 

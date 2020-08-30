@@ -15,7 +15,7 @@
     "@types/reactstrap": "^8.5.1",
     "bootstrap": "^4.5.2",
     "node-sass": "^4.14.1",
-    "passer": "file:./wasm/passer/pkg",
+    "passer": "file:./wasm/pkg",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
     "react-dropzone": "^11.0.3",
