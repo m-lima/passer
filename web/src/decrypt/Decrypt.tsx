@@ -18,6 +18,7 @@ import lock from '../img/lock-solid.svg'
 import file from '../img/file-solid.svg'
 import text from '../img/file-alt-solid.svg'
 
+import * as config from '../Config'
 import * as pack from './Pack'
 import * as util from '../Util'
 import Alert from '../Alert'
@@ -27,6 +28,7 @@ import Loading from '../Loading'
 enum Status {
   DOWNLOADING,
   NOT_FOUND,
+  CORRUPTED,
   DOWNLOADED,
   DECRYPTING,
   DECRYPTED,
@@ -57,7 +59,13 @@ const download = (data: Uint8Array, fileName: string) => {
 const NotFound = () =>
   <div className='dec-message'>
     <h2>Not Found</h2>
-    Make sure you have the corrent link
+    Make sure you have the corrent link and that it was not accessed before
+  </div>
+
+const Corrupted = () =>
+  <div className='dec-message'>
+    <h2>Invalid data</h2>
+    The data was downloaded but it was corrupted
   </div>
 
 const result = (pack: passer.Pack, index: number) =>
@@ -87,20 +95,15 @@ const Decrypt = (props: IProps) => {
   const { hash } = useParams()
 
   useEffect(() => {
-    fetch(`http://localhost:3030/${hash}`, {
+    fetch(`${config.API}${hash}`, {
       redirect: 'follow',
     })
-    .then(response => {
-      if (response.ok) {
-        return response.arrayBuffer()
-      } else {
-        throw Status.NOT_FOUND
-      }
-    })
-    .then(pack.decode)
+    .then(response => response.arrayBuffer())
+    .catch(() => { throw Status.NOT_FOUND })
+    .then(data => { try { return pack.decode(data) } catch { throw Status.CORRUPTED } })
     .then(setData)
     .then(() => setStatus(Status.DOWNLOADED))
-    .catch(() => setStatus(Status.NOT_FOUND))
+    .catch(setStatus)
   }, [hash])
 
   const decrypt = () => {
@@ -169,6 +172,7 @@ const Decrypt = (props: IProps) => {
 
   switch (status) {
     case Status.NOT_FOUND: return <NotFound />
+    case Status.CORRUPTED: return <Corrupted />
     case Status.DOWNLOADED: return <KeyPrompt />
     case Status.DECRYPTED: return <Results />
     case Status.DECRYPTING: return <Loading>Decrypting</Loading>

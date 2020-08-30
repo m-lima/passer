@@ -10,6 +10,7 @@ import './Result.css'
 
 import { ReactComponent as copy } from '../img/copy-solid.svg'
 
+import * as config from '../Config'
 import Glyph from '../Glyph'
 
 interface IProps {
@@ -44,7 +45,7 @@ const Result = (props: IProps) => {
               <Glyph src={copy} />
             </Button>
           </InputGroupAddon>
-          <Input innerRef={urlRef} type='text' readOnly value={window.location.href + 's/' + props.url} />
+          <Input innerRef={urlRef} type='text' readOnly value={window.location.origin + config.Path.DECRYPT + props.url} />
         </InputGroup>
       </div>
 

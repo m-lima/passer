@@ -10,6 +10,7 @@ import { BrowserRouter as Router, Route } from 'react-router-dom'
 
 import './App.css'
 
+import * as config from './Config'
 import Alert, { AlertBanner } from './Alert'
 import Decrypt from './decrypt/Decrypt'
 import Encrypt from './encrypt/Encrypt'
@@ -38,19 +39,19 @@ const App = () => {
       {alerts.map((alert, i) => <AlertBanner key={i} {...alert} />)}
       <Container className='app-container' role='main'>
         <Route
-          path='/howitworks'
-          exact
-          component={HowItWorks}
-        />
-        <Route
-          path='/'
+          path={config.Path.ENCRYPT}
           exact
           render={() => <Encrypt setAlerts={setAlerts} />}
         />
         <Route
-          path='/s/:hash'
+          path={config.Path.DECRYPT + ':hash'}
           exact
           render={() => <Decrypt setAlerts={setAlerts} />}
+        />
+        <Route
+          path={config.Path.HOW_IT_WORKS}
+          exact
+          component={HowItWorks}
         />
       </Container>
     </Router>

@@ -3,8 +3,6 @@
 #![allow(clippy::missing_errors_doc)]
 // Allowed because it is wasm
 #![allow(clippy::must_use_candidate)]
-// Allowed because it is unsafe due to wasm
-#![allow(clippy::unsafe_derive_deserialize)]
 
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;

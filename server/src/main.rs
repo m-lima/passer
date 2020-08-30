@@ -3,6 +3,25 @@
 
 use gotham::hyper;
 
+#[derive(Debug)]
+enum Error {
+    FailedToAcquireStore,
+    SecretNotFound,
+    NothingToInsert,
+}
+
+impl std::error::Error for Error {}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::FailedToAcquireStore => write!(fmt, "failed to acquire store"),
+            Self::SecretNotFound => write!(fmt, "secret not found"),
+            Self::NothingToInsert => write!(fmt, "nothing to insert"),
+        }
+    }
+}
+
 #[derive(serde::Deserialize, gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
 struct IdExtractor {
     id: String,
@@ -49,25 +68,6 @@ impl gotham::middleware::Middleware for CorsMiddleware {
                 (state, response)
             })
         })
-    }
-}
-
-#[derive(Debug)]
-enum Error {
-    FailedToAcquireStore,
-    SecretNotFound,
-    NothingToInsert,
-}
-
-impl std::error::Error for Error {}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::FailedToAcquireStore => write!(fmt, "failed to acquire store"),
-            Self::SecretNotFound => write!(fmt, "secret not found"),
-            Self::NothingToInsert => write!(fmt, "nothing to insert"),
-        }
     }
 }
 
@@ -210,9 +210,8 @@ fn main() {
             std::process::exit(-1)
         });
 
-    let host = format!("0.0.0.0:{}", port);
-    println!("Serving on http://{}", host);
-    gotham::start_with_num_threads(host, router(), 1);
+    println!("Using port {}", port);
+    gotham::start_with_num_threads(format!("0.0.0.0:{}", port), router(), 1);
 }
 
 #[cfg(test)]

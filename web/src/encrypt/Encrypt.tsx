@@ -20,6 +20,7 @@ import { ReactComponent as trash } from '../img/trash-alt-solid.svg'
 import { ReactComponent as SendFile } from '../img/file-import-solid.svg'
 import { ReactComponent as SendText } from '../img/file-signature-solid.svg'
 
+import * as config from '../Config'
 import * as pack from './Pack'
 import * as util from '../Util'
 import Alert from '../Alert'
@@ -129,7 +130,7 @@ const Encrypt = (props: IProps) => {
 
   const send = () => {
     setLoading('Uploading')
-    fetch('http://localhost:3030', {
+    fetch(config.API, {
       method: 'POST',
       redirect: 'follow',
       body: encode(packs.map(p => p.data.payload())),
@@ -213,7 +214,7 @@ const Encrypt = (props: IProps) => {
         : <div className='enc-instruction'>
             <span className='avoid-wrap'>Encrypt data locally in your browser</span>
             {' '}
-            <span className='avoid-wrap'>and share it securely</span>
+            <span className='avoid-wrap'>and share it securely.</span>
             <br />
             <div>
               <Link to='/howitworks'>
