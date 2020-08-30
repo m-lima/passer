@@ -3,6 +3,8 @@
 
 use gotham::hyper;
 
+mod options;
+
 static MAX_LENGTH: usize = 110 * 1024 * 1024;
 static MAX_STORE_SIZE: usize = 10;
 
@@ -34,11 +36,9 @@ struct IdExtractor {
     id: String,
 }
 
-#[cfg(feature = "local-dev")]
 #[derive(Clone, gotham_derive::NewMiddleware)]
-struct CorsMiddleware;
+struct CorsMiddleware(hyper::header::HeaderValue);
 
-#[cfg(feature = "local-dev")]
 impl gotham::middleware::Middleware for CorsMiddleware {
     fn call<C>(
         self,
@@ -55,10 +55,7 @@ impl gotham::middleware::Middleware for CorsMiddleware {
             #[allow(clippy::used_underscore_binding)]
             chain(state).await.map(|(state, mut response)| {
                 let header = response.headers_mut();
-                header.insert(
-                    hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-                    hyper::header::HeaderValue::from_static("http://localhost:3000"),
-                );
+                header.insert(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN, self.0);
                 (state, response)
             })
         })
@@ -227,19 +224,40 @@ fn router() -> gotham::router::Router {
 
     let pipeline = pipeline::new_pipeline()
         .add(LogMiddleware)
-        .add(StateMiddleware::new(Store::new()));
-
-    #[cfg(feature = "local-dev")]
-    let pipeline = pipeline.add(CorsMiddleware).build();
-    #[cfg(not(feature = "local-dev"))]
-    let pipeline = pipeline.build();
+        .add(StateMiddleware::new(Store::new()))
+        .build();
 
     let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
 
     let routes = builder::build_router(chain, pipelines, |route| {
         use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
 
-        #[cfg(feature = "local-dev")]
+        route.post("/").to(post_handler);
+        route
+            .get_or_head("/:id")
+            .with_path_extractor::<IdExtractor>()
+            .to(get_handler)
+    });
+
+    routes
+}
+
+fn router_with_cors(cors: hyper::header::HeaderValue) -> gotham::router::Router {
+    use gotham::middleware::state::StateMiddleware;
+    use gotham::pipeline;
+    use gotham::router::builder;
+
+    let pipeline = pipeline::new_pipeline()
+        .add(LogMiddleware)
+        .add(StateMiddleware::new(Store::new()))
+        .add(CorsMiddleware(cors))
+        .build();
+
+    let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
+
+    let routes = builder::build_router(chain, pipelines, |route| {
+        use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
+
         route.options("/").to(|state| (state, ""));
         route.post("/").to(post_handler);
         route
@@ -265,22 +283,32 @@ fn init_logger() {
 }
 
 fn main() {
+    let options = options::parse();
     init_logger();
 
-    let port = std::env::args()
-        .nth(1)
-        .map_or(Ok(80_u16), |port| port.parse::<u16>())
-        .unwrap_or_else(|e| {
-            log::error!("Inalid port: {}", e);
-            std::process::exit(-1)
-        });
+    let router = if let Some(cors) = options.cors {
+        router_with_cors(cors)
+    } else {
+        router()
+    };
 
-    gotham::start_with_num_threads(format!("0.0.0.0:{}", port), router(), 1);
+    if options.threads > 0 {
+        log::info!("Core threads set to {}", options.threads);
+        gotham::start_with_num_threads(
+            format!("0.0.0.0:{}", options.port),
+            router,
+            usize::from(options.threads),
+        );
+    } else {
+        log::info!("Core threads set to automatic");
+        gotham::start(format!("0.0.0.0:{}", options.port), router);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::router;
+    use super::router_with_cors;
     use gotham::hyper;
     use gotham::test::TestServer;
 
@@ -368,5 +396,41 @@ mod tests {
 
         let body = response.read_body().unwrap();
         assert!(body.is_empty());
+    }
+
+    #[test]
+    fn test_no_cors() {
+        let test_server = TestServer::new(router()).unwrap();
+        let response = test_server
+            .client()
+            .get("http://localhost/foo")
+            .perform()
+            .unwrap();
+
+        let cors = response
+            .headers()
+            .get(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN);
+
+        assert!(cors.is_none());
+    }
+
+    #[test]
+    fn test_with_cors() {
+        let test_server = TestServer::new(router_with_cors(
+            hyper::header::HeaderValue::from_static("bar"),
+        ))
+        .unwrap();
+        let response = test_server
+            .client()
+            .get("http://localhost/foo")
+            .perform()
+            .unwrap();
+
+        let cors = response
+            .headers()
+            .get(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .unwrap();
+
+        assert_eq!(cors, "bar");
     }
 }

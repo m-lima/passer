@@ -6,8 +6,10 @@
 ## Server
 [ ] Store files in filesytem
 [ ] Avoid deletiong if key does not match
+[ ] Github actions
 
 ## Web
 [ ] Support keypairs
 [ ] Warn before leaving if content is waiting for upload
 [ ] Load wasm natively with CRA
+[ ] Github actions
