@@ -240,7 +240,7 @@ mod tests {
         assert_eq!(response.status(), hyper::StatusCode::CREATED);
 
         let body = response.read_body().unwrap();
-        assert_eq!(body.len(), 44);
+        assert_eq!(body.len(), 43);
     }
 
     #[test]
