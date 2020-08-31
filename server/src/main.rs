@@ -108,7 +108,7 @@ fn router() -> gotham::router::Router {
 
         route.post(path!()).to(post_handler);
         route
-            .get_or_head(path!(":id"))
+            .get(path!(":id"))
             .with_path_extractor::<IdExtractor>()
             .to(get_handler)
     })
@@ -133,7 +133,7 @@ fn router_with_cors(cors: hyper::header::HeaderValue) -> gotham::router::Router 
         route.options(path!()).to(|state| (state, ""));
         route.post(path!()).to(post_handler);
         route
-            .get_or_head(path!(":id"))
+            .get(path!(":id"))
             .with_path_extractor::<IdExtractor>()
             .to(get_handler)
     })

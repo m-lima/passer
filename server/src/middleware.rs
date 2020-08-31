@@ -94,7 +94,10 @@ impl Store {
 
     fn new_key() -> String {
         use rand::Rng;
-        base64::encode_config(rand::thread_rng().gen::<[u8; 32]>(), base64::URL_SAFE)
+        base64::encode_config(
+            rand::thread_rng().gen::<[u8; 32]>(),
+            base64::URL_SAFE_NO_PAD,
+        )
     }
 
     pub fn put(&mut self, data: Vec<u8>) -> Result<String, gotham::handler::HandlerError> {
