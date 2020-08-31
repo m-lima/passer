@@ -135,7 +135,13 @@ const Encrypt = (props: IProps) => {
       redirect: 'follow',
       body: encode(packs.map(p => p.data.payload())),
     })
-    .then(response => response.text())
+    .then(response => {
+      if (response.ok) {
+        return response.text()
+      } else {
+        throw Alert.ERROR_UPLOADING
+      }
+    })
     .then(url => {
       setUploadResult(new UploadResult(url, pack.keyString()))
       props.setAlerts(Alert.SUCCESS_UPLOADING)
@@ -191,7 +197,7 @@ const Encrypt = (props: IProps) => {
       >
         <span className='enc-progresss-value'>{sizePercentage}{' %'}</span>
       </Progress>
-      <Button color='success' size='lg' block onClick={send} disabled={totalSize > pack.MAX_SIZE}>Done</Button>
+      <Button color='success' size='lg' block onClick={send} disabled={totalSize > pack.MAX_SIZE}>Upload</Button>
       <Button color='secondary' size='lg' block onClick={reset}>Clear</Button>
     </>
 

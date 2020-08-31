@@ -9,6 +9,8 @@ import {
 import './Result.css'
 
 import { ReactComponent as copy } from '../img/copy-solid.svg'
+import { ReactComponent as url } from '../img/link-solid.svg'
+import { ReactComponent as key } from '../img/key-solid.svg'
 
 import * as config from '../Config'
 import Glyph from '../Glyph'
@@ -19,6 +21,14 @@ interface IProps {
 }
 
 const Result = (props: IProps) => {
+  const singleRef = useRef<HTMLInputElement>(null)
+  const copySingle = () => {
+    if (singleRef && singleRef.current) {
+      singleRef.current.select()
+      document.execCommand('copy')
+    }
+  }
+
   const urlRef = useRef<HTMLInputElement>(null)
   const copyUrl = () => {
     if (urlRef && urlRef.current) {
@@ -38,11 +48,23 @@ const Result = (props: IProps) => {
   return (
     <>
       <div className='result-block'>
-        <h6>Link</h6>
+        <h6>Copy the link below and pass it to who should receive the encrypted data</h6>
+        <InputGroup>
+          <InputGroupAddon addonType='prepend'>
+            <Button color='info' onClick={copySingle}>
+              <Glyph src={copy} />
+            </Button>
+          </InputGroupAddon>
+          <Input innerRef={singleRef} type='text' readOnly value={window.location.origin + config.Path.DECRYPT_QUICK + props.url + props.keyString} />
+        </InputGroup>
+      </div>
+
+      <div className='result-block'>
+        <h6>Or, for extra security, send the link and the decryption key separately</h6>
         <InputGroup>
           <InputGroupAddon addonType='prepend'>
             <Button color='info' onClick={copyUrl}>
-              <Glyph src={copy} />
+              <Glyph src={url} />
             </Button>
           </InputGroupAddon>
           <Input innerRef={urlRef} type='text' readOnly value={window.location.origin + config.Path.DECRYPT + props.url} />
@@ -50,19 +72,14 @@ const Result = (props: IProps) => {
       </div>
 
       <div className='result-block'>
-        <h6>Decryption key</h6>
         <InputGroup>
           <InputGroupAddon addonType='prepend'>
             <Button color='info' onClick={copyKey}>
-              <Glyph src={copy} />
+              <Glyph src={key} />
             </Button>
           </InputGroupAddon>
           <Input innerRef={keyRef} type='text' readOnly value={props.keyString} />
         </InputGroup>
-      </div>
-
-      <div className='result-block'>
-        <Button color='success' size='lg' block href='/'>Encrypt more</Button>
       </div>
     </>
   )

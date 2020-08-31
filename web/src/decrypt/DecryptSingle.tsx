@@ -1,10 +1,5 @@
 import React, { Dispatch, SetStateAction, useState, useEffect } from 'react'
 import {
-  Button,
-  Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupText,
   ListGroup,
   ListGroupItem,
 } from 'reactstrap'
@@ -13,8 +8,6 @@ import * as passer from 'passer'
 
 import './Decrypt.css'
 
-import keyImg from '../img/key-solid.svg'
-import lock from '../img/lock-solid.svg'
 import file from '../img/file-solid.svg'
 import text from '../img/file-alt-solid.svg'
 
@@ -27,9 +20,9 @@ import Loading from '../Loading'
 
 enum Status {
   DOWNLOADING,
+  INVALID_LINK,
   NOT_FOUND,
   CORRUPTED,
-  DOWNLOADED,
   DECRYPTING,
   DECRYPTED,
 }
@@ -55,6 +48,12 @@ const download = (data: Uint8Array, fileName: string) => {
 
   util.yieldProcessing().then(() => window.URL.revokeObjectURL(url))
 }
+
+const InvalidLink = () =>
+  <div className='dec-message'>
+    <h2>Not Found</h2>
+    Make sure you have the corrent link
+  </div>
 
 const NotFound = () =>
   <div className='dec-message'>
@@ -90,96 +89,65 @@ interface IProps {
 const Decrypt = (props: IProps) => {
 
   const [status, setStatus] = useState(Status.DOWNLOADING)
-  const [key, setKey] = useState('')
-  const [data, setData] = useState<pack.Decoded | passer.Pack[]>([])
+  const [data, setData] = useState<passer.Pack[]>([])
   const { hash } = useParams()
 
   useEffect(() => {
-    fetch(`${config.API}${hash}`, {
-      redirect: 'follow',
-    })
-    .then(response => {
-      if (response.ok) {
-        return response.arrayBuffer()
-      } else {
-        throw Status.NOT_FOUND
-      }
-    })
-    .catch(() => { throw Status.NOT_FOUND })
-    .then(data => { try { return pack.decode(data) } catch { throw Status.CORRUPTED } })
-    .then(setData)
-    .then(() => setStatus(Status.DOWNLOADED))
-    .catch(setStatus)
-  }, [hash])
-
-  const decrypt = () => {
-    if (!data || !key || status !== Status.DOWNLOADED) {
+    if (status !== Status.DOWNLOADING) {
       return
     }
 
-    setStatus(Status.DECRYPTING)
+    if (hash.length !== 102) {
+      setStatus(Status.INVALID_LINK)
+      return
+    }
 
-    pack.decrypt(key, data as pack.Decoded)
-    .then(data => {
-      setData(data)
-      props.setAlerts(Alert.SUCCESS_DECRYPTING)
-      setStatus(Status.DECRYPTED)
-    })
-    .catch(() => {
-      props.setAlerts([Alert.INVALID_KEY])
-      setStatus(Status.DOWNLOADED)
-    })
-  }
+    try {
+      const url = hash.substr(0, 43)
+      const key = passer.Key.from_string(hash.substr(43))
 
-  const KeyPrompt = () =>
-    <div className='dec-container'>
-      <ListGroup flush>
-        <ListGroupItem>
-          <div className='spread'>
-            <span>
-              <Glyph src={lock}>
-                {hash}
-              </Glyph>
-            </span>
-            <span>
-              {util.sizeToString(data.length)}
-            </span>
-          </div>
-        </ListGroupItem>
-      </ListGroup>
-      <InputGroup>
-        <InputGroupAddon addonType='prepend'>
-          <InputGroupText>
-            <Glyph src={keyImg} />
-          </InputGroupText>
-        </InputGroupAddon>
-        <Input
-          type='text'
-          autoFocus
-          placeholder={'Insert the decryption key shared with you'}
-          autoComplete='off'
-          onChange={e => setKey(e.target.value)}
-          value={key}
-        />
-        <InputGroupAddon addonType='append'>
-          <Button color='success' onClick={decrypt} disabled={key.length !== 59}>
-            Decrypt
-          </Button>
-        </InputGroupAddon>
-      </InputGroup>
-    </div>
+      fetch(`${config.API}${url}`, {
+        redirect: 'follow',
+      })
+      .then(response => {
+        if (response.ok) {
+          return response.arrayBuffer()
+        } else {
+          throw Status.NOT_FOUND
+        }
+      })
+      .catch(() => { throw Status.NOT_FOUND })
+      .then(data => {
+        try {
+          setStatus(Status.DECRYPTING)
+          return pack.decode(data)
+        } catch {
+          throw Status.CORRUPTED
+        }
+      })
+      .then(decoded => pack.decryptWithKey(key, decoded).catch(() => { throw Status.CORRUPTED }))
+      .then(data => {
+          setData(data)
+          props.setAlerts(Alert.SUCCESS_DECRYPTING)
+          setStatus(Status.DECRYPTED)
+      })
+      .catch(setStatus)
+    } catch {
+      setStatus(Status.INVALID_LINK)
+    }
+  }, [status, hash, props])
 
   const Results = () =>
     <div className='dec-container'>
       <ListGroup flush>
-        {(data as passer.Pack[]).map(result)}
+        {(data).map(result)}
       </ListGroup>
     </div>
 
   switch (status) {
     case Status.NOT_FOUND: return <NotFound />
+    case Status.INVALID_LINK: return <InvalidLink />
     case Status.CORRUPTED: return <Corrupted />
-    case Status.DOWNLOADED: return <KeyPrompt />
     case Status.DECRYPTED: return <Results />
     case Status.DECRYPTING: return <Loading>Decrypting</Loading>
     default: case Status.DOWNLOADING: return <Loading>Downloading</Loading>

@@ -17,7 +17,10 @@ export const decode = (data: ArrayBuffer) => {
 }
 
 export const decrypt = async (key: string, decoded: Decoded) => {
+  return decryptWithKey(passer.Key.from_string(key), decoded)
+}
+
+export const decryptWithKey = async (key: passer.Key, decoded: Decoded) => {
   return util.yieldProcessing()
-  .then(() => passer.Key.from_string(key))
-  .then(key => decoded.data.map(datum => key.decrypt(datum)))
+  .then(() => decoded.data.map(datum => key.decrypt(datum)))
 }

@@ -57,14 +57,14 @@ impl Key {
     #[wasm_bindgen]
     pub fn from_string(key_str: &str) -> Result<Key, JsValue> {
         Self::new(
-            &base64::decode(key_str.as_bytes())
+            &base64::decode_config(key_str.as_bytes(), base64::URL_SAFE_NO_PAD)
                 .map_err(|_| Error::FailedToParseKey.into_js_value())?,
         )
     }
 
     #[wasm_bindgen]
     pub fn to_string(&self) -> js_sys::JsString {
-        base64::encode(&self.key[..]).into()
+        base64::encode_config(&self.key[..], base64::URL_SAFE_NO_PAD).into()
     }
 
     fn encrypt(&self, pack: &Pack) -> Result<Encrypted, JsValue> {
@@ -160,6 +160,35 @@ impl Pack {
 
     pub fn data(&self) -> js_sys::Uint8Array {
         unsafe { js_sys::Uint8Array::view(&self.data) }
+    }
+}
+
+#[wasm_bindgen]
+pub fn merge_url_key(url: &str, key: &str) -> Result<js_sys::JsString, JsValue> {
+    let url_bytes = base64::decode_config(url.as_bytes(), base64::URL_SAFE_NO_PAD)
+        .map_err(|_| Error::FailedToProcess.into_js_value())?;
+    let key_bytes = base64::decode_config(key.as_bytes(), base64::URL_SAFE_NO_PAD)
+        .map_err(|_| Error::FailedToProcess.into_js_value())?;
+    Ok(base64::encode_config(
+        [url_bytes.as_slice(), key_bytes.as_slice()].concat(),
+        base64::URL_SAFE_NO_PAD,
+    )
+    .into())
+}
+
+#[wasm_bindgen]
+pub fn unmerge_url_key(merged: &str) -> Result<js_sys::JsString, JsValue> {
+    let merged_bytes = base64::decode_config(merged.as_bytes(), base64::URL_SAFE_NO_PAD)
+        .map_err(|_| Error::FailedToProcess.into_js_value())?;
+    if merged_bytes.len() == 88 {
+        Ok(format!(
+            "{} {}",
+            base64::encode_config(&merged_bytes[..44], base64::URL_SAFE_NO_PAD),
+            base64::encode_config(&merged_bytes[44..], base64::URL_SAFE_NO_PAD),
+        )
+        .into())
+    } else {
+        Err(Error::InvalidKey.into_js_value())
     }
 }
 
