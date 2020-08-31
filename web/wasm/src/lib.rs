@@ -163,35 +163,6 @@ impl Pack {
     }
 }
 
-#[wasm_bindgen]
-pub fn merge_url_key(url: &str, key: &str) -> Result<js_sys::JsString, JsValue> {
-    let url_bytes = base64::decode_config(url.as_bytes(), base64::URL_SAFE_NO_PAD)
-        .map_err(|_| Error::FailedToProcess.into_js_value())?;
-    let key_bytes = base64::decode_config(key.as_bytes(), base64::URL_SAFE_NO_PAD)
-        .map_err(|_| Error::FailedToProcess.into_js_value())?;
-    Ok(base64::encode_config(
-        [url_bytes.as_slice(), key_bytes.as_slice()].concat(),
-        base64::URL_SAFE_NO_PAD,
-    )
-    .into())
-}
-
-#[wasm_bindgen]
-pub fn unmerge_url_key(merged: &str) -> Result<js_sys::JsString, JsValue> {
-    let merged_bytes = base64::decode_config(merged.as_bytes(), base64::URL_SAFE_NO_PAD)
-        .map_err(|_| Error::FailedToProcess.into_js_value())?;
-    if merged_bytes.len() == 88 {
-        Ok(format!(
-            "{} {}",
-            base64::encode_config(&merged_bytes[..44], base64::URL_SAFE_NO_PAD),
-            base64::encode_config(&merged_bytes[44..], base64::URL_SAFE_NO_PAD),
-        )
-        .into())
-    } else {
-        Err(Error::InvalidKey.into_js_value())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     #[test]
