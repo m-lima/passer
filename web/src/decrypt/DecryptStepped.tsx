@@ -15,10 +15,9 @@ import './Decrypt.css'
 
 import keyImg from '../img/key-solid.svg'
 import lock from '../img/lock-solid.svg'
-import file from '../img/file-solid.svg'
-import text from '../img/file-alt-solid.svg'
 
 import * as config from '../Config'
+import * as components from './Components'
 import * as pack from './Pack'
 import * as util from '../Util'
 import Alert from '../Alert'
@@ -34,60 +33,11 @@ enum Status {
   DECRYPTED,
 }
 
-const downloadURL = (data: string, fileName: string) => {
-  const a = document.createElement('a')
-  a.href = data
-  a.download = fileName
-  document.body.appendChild(a)
-  a.style.display = 'none'
-  a.click()
-  a.remove()
-}
-
-const download = (data: Uint8Array, fileName: string) => {
-  const blob = new Blob([data], {
-    type: 'application/octet-stream'
-  })
-
-  const url = window.URL.createObjectURL(blob)
-
-  downloadURL(url, fileName)
-
-  util.yieldProcessing().then(() => window.URL.revokeObjectURL(url))
-}
-
-const NotFound = () =>
-  <div className='dec-message'>
-    <h2>Not Found</h2>
-    Make sure you have the correct link and that it was not accessed before
-  </div>
-
-const Corrupted = () =>
-  <div className='dec-message'>
-    <h2>Invalid data</h2>
-    The data was downloaded but it was corrupted
-  </div>
-
-const result = (pack: passer.Pack, index: number) =>
-  pack.plain_message()
-    ? <ListGroupItem className='dec-text-block'>
-        <Glyph src={text}>{pack.name()}</Glyph>
-        <pre className='dec-text'>
-          {new TextDecoder().decode(pack.data())}
-        </pre>
-      </ListGroupItem>
-    : <ListGroupItem className='dec-text-block' tag='button' action onClick={() => download(pack.data(), pack.name())}>
-        <div className='spread'>
-          <Glyph src={file}>{pack.name()}</Glyph>
-          <span>{util.sizeToString(pack.size())}</span>
-        </div>
-      </ListGroupItem>
-
 interface IProps {
   setAlerts: Dispatch<SetStateAction<Alert[]>>
 }
 
-const Decrypt = (props: IProps) => {
+const DecryptStepped = (props: IProps) => {
 
   const [status, setStatus] = useState(Status.DOWNLOADING)
   const [key, setKey] = useState('')
@@ -169,22 +119,15 @@ const Decrypt = (props: IProps) => {
       </InputGroup>
     </div>
 
-  const Results = () =>
-    <div className='dec-container'>
-      <ListGroup flush>
-        {(data as passer.Pack[]).map(result)}
-      </ListGroup>
-    </div>
-
   switch (status) {
-    case Status.NOT_FOUND: return <NotFound />
-    case Status.CORRUPTED: return <Corrupted />
+    case Status.NOT_FOUND: return <components.NotFound />
+    case Status.CORRUPTED: return <components.Corrupted />
     case Status.DOWNLOADED: return <KeyPrompt />
-    case Status.DECRYPTED: return <Results />
+    case Status.DECRYPTED: return <components.Results data={data as passer.Pack[]} />
     case Status.DECRYPTING: return <Loading>Decrypting</Loading>
     default: case Status.DOWNLOADING: return <Loading>Downloading</Loading>
   }
 }
 
-export default Decrypt
+export default DecryptStepped
 

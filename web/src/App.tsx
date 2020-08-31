@@ -12,8 +12,8 @@ import './App.css'
 
 import * as config from './Config'
 import Alert, { AlertBanner } from './Alert'
-import Decrypt from './decrypt/Decrypt'
-import DecryptSingle from './decrypt/DecryptSingle'
+import DecryptStepped from './decrypt/DecryptStepped'
+import DecryptQuick from './decrypt/DecryptQuick'
 import Encrypt from './encrypt/Encrypt'
 import Footer from './Footer'
 import HowItWorks from './HowItWorks'
@@ -43,12 +43,12 @@ const App = () => {
           <Route
             path={config.Path.DECRYPT + ':hash'}
             exact
-            render={() => <Decrypt setAlerts={setAlerts} />}
+            render={() => <DecryptStepped setAlerts={setAlerts} />}
           />
           <Route
             path={config.Path.DECRYPT_QUICK + ':hash'}
             exact
-            render={() => <DecryptSingle setAlerts={setAlerts} />}
+            render={() => <DecryptQuick setAlerts={setAlerts} />}
           />
           <Route
             path={config.Path.HOW_IT_WORKS}
