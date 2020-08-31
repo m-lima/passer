@@ -41,7 +41,7 @@ const App = () => {
       <Container className='app-container' role='main'>
         <Switch>
           <Route
-            path={config.Path.DECRYPT + ':hash'}
+            path={config.Path.DECRYPT_STEPPED + ':hash'}
             exact
             render={() => <DecryptStepped setAlerts={setAlerts} />}
           />

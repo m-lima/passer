@@ -67,7 +67,7 @@ const Result = (props: IProps) => {
               <Glyph src={url} />
             </Button>
           </InputGroupAddon>
-          <Input innerRef={urlRef} type='text' readOnly value={window.location.origin + config.Path.DECRYPT + props.url} />
+          <Input innerRef={urlRef} type='text' readOnly value={window.location.origin + config.Path.DECRYPT_STEPPED + props.url} />
         </InputGroup>
       </div>
 
