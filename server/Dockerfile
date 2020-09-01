@@ -5,8 +5,8 @@ COPY . .
 RUN cargo build --release
 
 # Pack
-FROM ubuntu
+FROM debian:stable-slim
 COPY --from=rust /src/target/release/passer /usr/bin/passer
 EXPOSE 80
 
-CMD ["passer"]
+ENTRYPOINT ["passer"]

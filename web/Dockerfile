@@ -21,7 +21,7 @@ RUN npm install
 # Build
 COPY src src
 COPY public public
-COPY cfg/Config.ts src/Config.ts
+COPY cfg/Config.standalone.ts src/Config.ts
 RUN npm run build
 
 ## Pack

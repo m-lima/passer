@@ -1,0 +1,10 @@
+web/node_modules
+web/build
+web/build.sh
+web/wasm/target
+web/wasm/pkg
+web/wasm/Cargo.lock
+
+server/target
+server/Cargo.lock
+server/build.sh
