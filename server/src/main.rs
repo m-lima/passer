@@ -244,7 +244,7 @@ mod tests {
             threads: 0,
             cors: None,
             #[cfg(feature = "host-frontend")]
-            web_path: ("res/test".into(), "res/index.html".into()),
+            web_path: ("res/test".into(), "res/test/index".into()),
         }
     }
 
@@ -375,7 +375,7 @@ mod tests {
     }
 
     #[test]
-    fn test_no_cors() {
+    fn no_cors() {
         let test_server = TestServer::new(router(options())).unwrap();
         let response = test_server
             .client()
@@ -391,15 +391,11 @@ mod tests {
     }
 
     #[test]
-    fn test_with_cors() {
-        let cors_options = options::Options {
-            port: 0,
-            threads: 0,
-            cors: Some(hyper::header::HeaderValue::from_static("bar")),
-            #[cfg(feature = "host-frontend")]
-            web_path: ("res/test".into(), "res/index.html".into()),
-        };
-        let test_server = TestServer::new(router(cors_options)).unwrap();
+    fn with_cors() {
+        let mut options = options();
+        options.cors = Some(hyper::header::HeaderValue::from_static("bar"));
+
+        let test_server = TestServer::new(router(options)).unwrap();
         let response = test_server
             .client()
             .get(host_path!("foo"))
@@ -412,5 +408,73 @@ mod tests {
             .unwrap();
 
         assert_eq!(cors, "bar");
+    }
+
+    #[test]
+    #[cfg(feature = "host-frontend")]
+    fn index() {
+        let test_server = TestServer::new(router(options())).unwrap();
+        let response = test_server
+            .client()
+            .get("http://localhost")
+            .perform()
+            .unwrap();
+
+        assert_eq!(response.status(), hyper::StatusCode::OK);
+        let body = response.read_body().unwrap();
+        assert_eq!(&body[..], b"main_page\n");
+
+        let response = test_server
+            .client()
+            .get("http://localhost/")
+            .perform()
+            .unwrap();
+
+        assert_eq!(response.status(), hyper::StatusCode::OK);
+        let body = response.read_body().unwrap();
+        assert_eq!(&body[..], b"main_page\n");
+    }
+
+    #[test]
+    #[cfg(feature = "host-frontend")]
+    fn assests() {
+        let test_server = TestServer::new(router(options())).unwrap();
+        let response = test_server
+            .client()
+            .get("http://localhost/foo")
+            .perform()
+            .unwrap();
+
+        assert_eq!(response.status(), hyper::StatusCode::OK);
+        let body = response.read_body().unwrap();
+        assert_eq!(&body[..], b"bar\n");
+    }
+
+    #[test]
+    #[cfg(feature = "host-frontend")]
+    fn fallback_to_index() {
+        let test_server = TestServer::new(router(options())).unwrap();
+        let response = test_server
+            .client()
+            .get("http://localhost/bar")
+            .perform()
+            .unwrap();
+
+        assert_eq!(response.status(), hyper::StatusCode::OK);
+        let body = response.read_body().unwrap();
+        assert_eq!(&body[..], b"main_page\n");
+    }
+
+    #[test]
+    #[cfg(feature = "host-frontend")]
+    fn api_still_gets_served() {
+        let test_server = TestServer::new(router(options())).unwrap();
+        let response = test_server
+            .client()
+            .get(host_path!("foo"))
+            .perform()
+            .unwrap();
+
+        assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
     }
 }
