@@ -20,6 +20,34 @@ macro_rules! path {
     };
 }
 
+macro_rules! add_routes {
+    ($route:ident, $options: ident, $cors:ident) => {
+        add_routes!($route, $options);
+        $route.options(path!()).to(|state| (state, ""));
+    };
+    ($route:ident, $options: ident) => {
+        use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
+        #[cfg(feature = "host-frontend")]
+        {
+            log::info!("Serving front-end at {}", $options.web_path.0.display());
+            $route
+                .get("/*")
+                .with_path_extractor::<gotham::handler::assets::FilePathExtractor>()
+                .to_new_handler(IndexHandler::new(
+                    $options.web_path.0,
+                    $options.web_path.1.clone(),
+                ));
+            $route.get("/").to_file($options.web_path.1);
+        }
+
+        $route.post(path!()).to(post_handler);
+        $route
+            .get(path!(":id"))
+            .with_path_extractor::<IdExtractor>()
+            .to(get_handler);
+    };
+}
+
 #[derive(Debug)]
 enum Error {
     FailedToAcquireStore,
@@ -46,6 +74,50 @@ impl std::fmt::Display for Error {
 #[derive(serde::Deserialize, gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
 struct IdExtractor {
     id: String,
+}
+
+#[cfg(feature = "host-frontend")]
+#[derive(Clone)]
+struct IndexHandler(
+    gotham::handler::assets::DirHandler,
+    gotham::handler::assets::FileHandler,
+);
+
+#[cfg(feature = "host-frontend")]
+impl IndexHandler {
+    fn new(root: std::path::PathBuf, index: std::path::PathBuf) -> Self {
+        use gotham::handler::assets;
+        Self(
+            assets::DirHandler::new(assets::FileOptions::from(root)),
+            assets::FileHandler::new(assets::FileOptions::from(index)),
+        )
+    }
+}
+
+#[cfg(feature = "host-frontend")]
+impl gotham::handler::NewHandler for IndexHandler {
+    type Instance = Self;
+
+    fn new_handler(&self) -> gotham::error::Result<Self::Instance> {
+        Ok(self.clone())
+    }
+}
+
+#[cfg(feature = "host-frontend")]
+impl gotham::handler::Handler for IndexHandler {
+    fn handle(
+        self,
+        state: gotham::state::State,
+    ) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>> {
+        Box::pin(async {
+            // Allowed because this is third-party code being flagged
+            #[allow(clippy::used_underscore_binding)]
+            match self.0.handle(state).await {
+                Ok(response) => Ok(response),
+                Err((state, _)) => self.1.handle(state).await,
+            }
+        })
+    }
 }
 
 fn get_handler(
@@ -91,52 +163,35 @@ fn post_handler(
     })
 }
 
-fn router() -> gotham::router::Router {
+fn router(mut options: options::Options) -> gotham::router::Router {
     use gotham::middleware::state::StateMiddleware;
     use gotham::pipeline;
     use gotham::router::builder;
 
-    let pipeline = pipeline::new_pipeline()
-        .add(middleware::Log)
-        .add(StateMiddleware::new(middleware::Store::new()))
-        .build();
+    if let Some(cors) = options.cors.take() {
+        let pipeline = pipeline::new_pipeline()
+            .add(middleware::Log)
+            .add(StateMiddleware::new(middleware::Store::new()))
+            .add(middleware::Cors::new(cors))
+            .build();
 
-    let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
+        let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
 
-    builder::build_router(chain, pipelines, |route| {
-        use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
+        builder::build_router(chain, pipelines, |route| {
+            add_routes!(route, options, cors);
+        })
+    } else {
+        let pipeline = pipeline::new_pipeline()
+            .add(middleware::Log)
+            .add(StateMiddleware::new(middleware::Store::new()))
+            .build();
 
-        route.post(path!()).to(post_handler);
-        route
-            .get(path!(":id"))
-            .with_path_extractor::<IdExtractor>()
-            .to(get_handler)
-    })
-}
+        let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
 
-fn router_with_cors(cors: hyper::header::HeaderValue) -> gotham::router::Router {
-    use gotham::middleware::state::StateMiddleware;
-    use gotham::pipeline;
-    use gotham::router::builder;
-
-    let pipeline = pipeline::new_pipeline()
-        .add(middleware::Log)
-        .add(StateMiddleware::new(middleware::Store::new()))
-        .add(middleware::Cors::new(cors))
-        .build();
-
-    let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
-
-    builder::build_router(chain, pipelines, |route| {
-        use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
-
-        route.options(path!()).to(|state| (state, ""));
-        route.post(path!()).to(post_handler);
-        route
-            .get(path!(":id"))
-            .with_path_extractor::<IdExtractor>()
-            .to(get_handler)
-    })
+        builder::build_router(chain, pipelines, |route| {
+            add_routes!(route, options);
+        })
+    }
 }
 
 fn init_logger() {
@@ -156,29 +211,24 @@ fn main() {
     let options = options::parse();
     init_logger();
 
-    let router = if let Some(cors) = options.cors {
-        router_with_cors(cors)
-    } else {
-        router()
-    };
-
     if options.threads > 0 {
+        let threads = usize::from(options.threads);
         log::info!("Core threads set to {}", options.threads);
         gotham::start_with_num_threads(
             format!("0.0.0.0:{}", options.port),
-            router,
-            usize::from(options.threads),
+            router(options),
+            threads,
         );
     } else {
         log::info!("Core threads set to automatic");
-        gotham::start(format!("0.0.0.0:{}", options.port), router);
+        gotham::start(format!("0.0.0.0:{}", options.port), router(options));
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::options;
     use super::router;
-    use super::router_with_cors;
     use gotham::hyper;
     use gotham::test::TestServer;
 
@@ -186,6 +236,16 @@ mod tests {
         ($($path:literal)?) => {
             concat!("http://localhost", path!($($path)?))
         };
+    }
+
+    fn options() -> options::Options {
+        options::Options {
+            port: 0,
+            threads: 0,
+            cors: None,
+            #[cfg(feature = "host-frontend")]
+            web_path: ("res/test".into(), "res/index.html".into()),
+        }
     }
 
     #[test]
@@ -230,7 +290,7 @@ mod tests {
 
     #[test]
     fn post_secret() {
-        let test_server = TestServer::new(router()).unwrap();
+        let test_server = TestServer::new(router(options())).unwrap();
         let response = test_server
             .client()
             .post(host_path!(), "foo", mime::TEXT_PLAIN)
@@ -245,7 +305,7 @@ mod tests {
 
     #[test]
     fn get_secret() {
-        let test_server = TestServer::new(router()).unwrap();
+        let test_server = TestServer::new(router(options())).unwrap();
         let response = test_server
             .client()
             .post(host_path!(), "foo", mime::TEXT_PLAIN)
@@ -271,7 +331,7 @@ mod tests {
 
     #[test]
     fn cannot_choose_key_to_put() {
-        let test_server = TestServer::new(router()).unwrap();
+        let test_server = TestServer::new(router(options())).unwrap();
         let response = test_server
             .client()
             .post(host_path!("my_key"), "foo", mime::TEXT_PLAIN)
@@ -286,7 +346,7 @@ mod tests {
 
     #[test]
     fn cannot_put_empty_values() {
-        let test_server = TestServer::new(router()).unwrap();
+        let test_server = TestServer::new(router(options())).unwrap();
         let response = test_server
             .client()
             .post(host_path!(), "", mime::TEXT_PLAIN)
@@ -301,7 +361,7 @@ mod tests {
 
     #[test]
     fn only_get_if_exists() {
-        let test_server = TestServer::new(router()).unwrap();
+        let test_server = TestServer::new(router(options())).unwrap();
         let response = test_server
             .client()
             .get(host_path!("foo"))
@@ -316,7 +376,7 @@ mod tests {
 
     #[test]
     fn test_no_cors() {
-        let test_server = TestServer::new(router()).unwrap();
+        let test_server = TestServer::new(router(options())).unwrap();
         let response = test_server
             .client()
             .get(host_path!("foo"))
@@ -332,10 +392,14 @@ mod tests {
 
     #[test]
     fn test_with_cors() {
-        let test_server = TestServer::new(router_with_cors(
-            hyper::header::HeaderValue::from_static("bar"),
-        ))
-        .unwrap();
+        let cors_options = options::Options {
+            port: 0,
+            threads: 0,
+            cors: Some(hyper::header::HeaderValue::from_static("bar")),
+            #[cfg(feature = "host-frontend")]
+            web_path: ("res/test".into(), "res/index.html".into()),
+        };
+        let test_server = TestServer::new(router(cors_options)).unwrap();
         let response = test_server
             .client()
             .get(host_path!("foo"))

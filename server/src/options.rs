@@ -22,7 +22,7 @@ pub struct Options {
     /// The directory of the front-end content
     #[cfg(feature = "host-frontend")]
     #[clap(short, long, parse(try_from_str = to_path))]
-    pub web_path: std::path::PathBuf,
+    pub web_path: (std::path::PathBuf, std::path::PathBuf),
 }
 
 fn to_cors(value: &str) -> Result<hyper::header::HeaderValue, hyper::header::InvalidHeaderValue> {
@@ -30,12 +30,16 @@ fn to_cors(value: &str) -> Result<hyper::header::HeaderValue, hyper::header::Inv
 }
 
 #[cfg(feature = "host-frontend")]
-fn to_path(value: &str) -> Result<std::path::PathBuf, &'static str> {
+fn to_path(value: &str) -> Result<(std::path::PathBuf, std::path::PathBuf), &'static str> {
     let path = std::path::PathBuf::from(value);
-
-    if path.is_dir() {
-        Ok(path)
-    } else {
-        Err("path is not a directory")
+    if !path.is_dir() {
+        return Err("path is not a directory");
     }
+
+    let index = path.join("index.html");
+    if !index.exists() {
+        return Err("path does not contain an index.html");
+    }
+
+    Ok((path, index))
 }
