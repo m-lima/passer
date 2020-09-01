@@ -7,6 +7,7 @@
 [ ] Store files in filesytem
 [ ] Avoid deletiong if key does not match
 [ ] Github actions
+[ ] Allow TLS in the bundled version
 
 ## Web
 [ ] Support keypairs
