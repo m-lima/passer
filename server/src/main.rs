@@ -32,18 +32,18 @@ macro_rules! add_routes {
             $route
                 .get("/*")
                 .with_path_extractor::<gotham::handler::assets::FilePathExtractor>()
-                .to_new_handler($crate::handler::IndexHandler::new(
+                .to_new_handler($crate::handler::Index::new(
                     $options.web_path.0,
                     $options.web_path.1.clone(),
                 ));
             $route.get("/").to_file($options.web_path.1);
         }
 
-        $route.post(path!()).to($crate::handler::post_handler);
+        $route.post(path!()).to($crate::handler::post);
         $route
             .get(path!(":id"))
             .with_path_extractor::<IdExtractor>()
-            .to($crate::handler::get_handler);
+            .to($crate::handler::get);
     };
 }
 

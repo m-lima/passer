@@ -5,13 +5,13 @@ use super::IdExtractor;
 
 // #[cfg(feature = "host-frontend")]
 #[derive(Clone)]
-pub struct IndexHandler(
+pub struct Index(
     gotham::handler::assets::DirHandler,
     gotham::handler::assets::FileHandler,
 );
 
 #[cfg(feature = "host-frontend")]
-impl IndexHandler {
+impl Index {
     pub fn new(root: std::path::PathBuf, index: std::path::PathBuf) -> Self {
         use gotham::handler::assets;
         Self(
@@ -22,7 +22,7 @@ impl IndexHandler {
 }
 
 #[cfg(feature = "host-frontend")]
-impl gotham::handler::NewHandler for IndexHandler {
+impl gotham::handler::NewHandler for Index {
     type Instance = Self;
 
     fn new_handler(&self) -> gotham::anyhow::Result<Self::Instance> {
@@ -31,7 +31,7 @@ impl gotham::handler::NewHandler for IndexHandler {
 }
 
 #[cfg(feature = "host-frontend")]
-impl gotham::handler::Handler for IndexHandler {
+impl gotham::handler::Handler for Index {
     fn handle(
         self,
         state: gotham::state::State,
@@ -47,7 +47,7 @@ impl gotham::handler::Handler for IndexHandler {
     }
 }
 
-pub fn get_handler(
+pub fn get(
     mut state: gotham::state::State,
 ) -> (gotham::state::State, hyper::Response<hyper::Body>) {
     use gotham::handler::IntoResponse;
@@ -62,9 +62,7 @@ pub fn get_handler(
     (state, response)
 }
 
-pub fn post_handler(
-    mut state: gotham::state::State,
-) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>> {
+pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>> {
     Box::pin(async {
         use gotham::handler::IntoResponse;
         use gotham::state::FromState;
