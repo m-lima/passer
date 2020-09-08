@@ -1,6 +1,6 @@
 {
   "short_name": "Passer",
-  "name": "AES-GCM passing along",
+  "name": "Encrypt files locally and share them securely",
   "icons": [
     {
       "src": "favicon.ico",
