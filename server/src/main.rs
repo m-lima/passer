@@ -1,8 +1,7 @@
 #![deny(warnings, clippy::pedantic, clippy::all)]
 #![warn(rust_2018_idioms)]
 
-use gotham::hyper;
-
+mod handler;
 mod middleware;
 mod options;
 
@@ -33,18 +32,18 @@ macro_rules! add_routes {
             $route
                 .get("/*")
                 .with_path_extractor::<gotham::handler::assets::FilePathExtractor>()
-                .to_new_handler(IndexHandler::new(
+                .to_new_handler($crate::handler::IndexHandler::new(
                     $options.web_path.0,
                     $options.web_path.1.clone(),
                 ));
             $route.get("/").to_file($options.web_path.1);
         }
 
-        $route.post(path!()).to(post_handler);
+        $route.post(path!()).to($crate::handler::post_handler);
         $route
             .get(path!(":id"))
             .with_path_extractor::<IdExtractor>()
-            .to(get_handler);
+            .to($crate::handler::get_handler);
     };
 }
 
@@ -74,93 +73,6 @@ impl std::fmt::Display for Error {
 #[derive(serde::Deserialize, gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
 struct IdExtractor {
     id: String,
-}
-
-#[cfg(feature = "host-frontend")]
-#[derive(Clone)]
-struct IndexHandler(
-    gotham::handler::assets::DirHandler,
-    gotham::handler::assets::FileHandler,
-);
-
-#[cfg(feature = "host-frontend")]
-impl IndexHandler {
-    fn new(root: std::path::PathBuf, index: std::path::PathBuf) -> Self {
-        use gotham::handler::assets;
-        Self(
-            assets::DirHandler::new(assets::FileOptions::from(root)),
-            assets::FileHandler::new(assets::FileOptions::from(index)),
-        )
-    }
-}
-
-#[cfg(feature = "host-frontend")]
-impl gotham::handler::NewHandler for IndexHandler {
-    type Instance = Self;
-
-    fn new_handler(&self) -> gotham::error::Result<Self::Instance> {
-        Ok(self.clone())
-    }
-}
-
-#[cfg(feature = "host-frontend")]
-impl gotham::handler::Handler for IndexHandler {
-    fn handle(
-        self,
-        state: gotham::state::State,
-    ) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>> {
-        Box::pin(async {
-            // Allowed because this is third-party code being flagged
-            #[allow(clippy::used_underscore_binding)]
-            match self.0.handle(state).await {
-                Ok(response) => Ok(response),
-                Err((state, _)) => self.1.handle(state).await,
-            }
-        })
-    }
-}
-
-fn get_handler(
-    mut state: gotham::state::State,
-) -> (gotham::state::State, hyper::Response<hyper::Body>) {
-    use gotham::handler::IntoResponse;
-    use gotham::state::FromState;
-
-    let id = { IdExtractor::take_from(&mut state).id };
-    let store = middleware::Store::borrow_mut_from(&mut state);
-
-    let response = store
-        .get(&id)
-        .map_or_else(|e| e.into_response(&state), |r| r.into_response(&state));
-    (state, response)
-}
-
-fn post_handler(
-    mut state: gotham::state::State,
-) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>> {
-    Box::pin(async {
-        use gotham::handler::{IntoHandlerError, IntoResponse};
-        use gotham::state::FromState;
-        use hyper::{body, Body};
-
-        // Allowed because this is third-party code being flagged
-        #[allow(clippy::used_underscore_binding)]
-        match body::to_bytes(Body::take_from(&mut state))
-            .await
-            .map(|b| b.to_vec())
-            .map_err(IntoHandlerError::into_handler_error)
-            .and_then(|data| {
-                let store = middleware::Store::borrow_mut_from(&mut state);
-                store.put(data).map(|key| {
-                    let mut response = key.into_response(&state);
-                    *response.status_mut() = hyper::StatusCode::CREATED;
-                    response
-                })
-            }) {
-            Ok(r) => Ok((state, r)),
-            Err(e) => Err((state, e)),
-        }
-    })
 }
 
 fn router(mut options: options::Options) -> gotham::router::Router {

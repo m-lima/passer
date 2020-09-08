@@ -101,25 +101,19 @@ impl Store {
     }
 
     pub fn put(&mut self, data: Vec<u8>) -> Result<String, gotham::handler::HandlerError> {
-        use gotham::handler::IntoHandlerError;
+        use gotham::handler::MapHandlerError;
 
         if data.is_empty() {
-            return Err(Error::NothingToInsert
-                .into_handler_error()
-                .with_status(hyper::StatusCode::BAD_REQUEST));
+            return Err(Error::NothingToInsert).map_err_with_status(hyper::StatusCode::BAD_REQUEST);
         }
 
         if data.len() > MAX_LENGTH {
-            return Err(Error::TooLarge
-                .into_handler_error()
-                .with_status(hyper::StatusCode::PAYLOAD_TOO_LARGE));
+            return Err(Error::TooLarge).map_err_with_status(hyper::StatusCode::PAYLOAD_TOO_LARGE);
         }
 
         if let Ok(mut map) = self.secrets.lock() {
             if map.len() > MAX_STORE_SIZE {
-                Err(Error::StoreFull
-                    .into_handler_error()
-                    .with_status(hyper::StatusCode::CONFLICT))
+                Err(Error::StoreFull).map_err_with_status(hyper::StatusCode::CONFLICT)
             } else {
                 let key = loop {
                     let key = Self::new_key();
@@ -132,20 +126,19 @@ impl Store {
                 Ok(key)
             }
         } else {
-            Err(Error::FailedToAcquireStore.into_handler_error())
+            Err(Error::FailedToAcquireStore)
+                .map_err_with_status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 
     pub fn get(&mut self, key: &str) -> Result<Vec<u8>, gotham::handler::HandlerError> {
-        use gotham::handler::IntoHandlerError;
         self.secrets
             .lock()
-            .map_err(|_| Error::FailedToAcquireStore.into_handler_error())
+            .map_err(|_| Error::FailedToAcquireStore.into())
             .and_then(|mut map| {
                 map.remove(key).ok_or_else(|| {
-                    Error::SecretNotFound
-                        .into_handler_error()
-                        .with_status(hyper::StatusCode::NOT_FOUND)
+                    let err: gotham::handler::HandlerError = Error::SecretNotFound.into();
+                    err.with_status(hyper::StatusCode::NOT_FOUND)
                 })
             })
     }
