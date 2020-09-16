@@ -58,8 +58,16 @@ impl gotham::middleware::Middleware for Log {
                 {
                     use gotham::state::FromState;
 
-                    let ip = gotham::state::client_addr(&state)
-                        .map_or_else(|| String::from("??"), |addr| addr.ip().to_string());
+                    let ip = hyper::HeaderMap::borrow_from(&state)
+                        .get(hyper::header::HeaderName::from_static("X-Forwarded-For"))
+                        .and_then(|fwd| fwd.to_str().ok())
+                        .map(|fwd| format!("x{}", fwd))
+                        .unwrap_or_else(|| {
+                            gotham::state::client_addr(&state).map_or_else(
+                                || String::from("??"),
+                                |addr| format!("p{}", addr.ip().to_string()),
+                            )
+                        });
 
                     // Request info
                     let path = hyper::Uri::borrow_from(&state);
