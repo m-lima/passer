@@ -58,10 +58,12 @@ fn router(mut options: options::Options) -> gotham::router::Router {
     use gotham::pipeline;
     use gotham::router::builder;
 
-    let store = options
-        .store_path
-        .map(store::InFile::new)
-        .unwrap_or_else(store::InMemory::new);
+    let store: Box<dyn 'static + store::Store + Send> =
+        if let Some(ref store_path) = options.store_path {
+            Box::new(store::InFile::new(store_path))
+        } else {
+            Box::new(store::InMemory::new())
+        };
 
     if let Some(cors) = options.cors.take() {
         let pipeline = pipeline::new_pipeline()
@@ -138,6 +140,7 @@ mod tests {
             port: 0,
             threads: 0,
             cors: None,
+            store_path: None,
             #[cfg(feature = "host-frontend")]
             web_path: ("res/test".into(), "res/test/index".into()),
         }
@@ -207,6 +210,7 @@ mod tests {
             .perform()
             .unwrap();
 
+        assert_eq!(response.status(), hyper::StatusCode::CREATED);
         let key = response.read_body().unwrap();
 
         let response = test_server

@@ -76,11 +76,18 @@ pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handle
             .map_err(|e| e.into())
             .and_then(|data| {
                 let store = middleware::Store::borrow_mut_from(&mut state);
-                store.put(data, std::time::SystemTime::now()).map(|key| {
-                    let mut response = key.into_response(&state);
-                    *response.status_mut() = hyper::StatusCode::CREATED;
-                    response
-                })
+                store
+                    .put(
+                        data,
+                        std::time::SystemTime::now()
+                            .checked_add(std::time::Duration::from_secs(24 * 60 * 60))
+                            .unwrap(),
+                    )
+                    .map(|key| {
+                        let mut response = key.into_response(&state);
+                        *response.status_mut() = hyper::StatusCode::CREATED;
+                        response
+                    })
             }) {
             Ok(r) => Ok((state, r)),
             Err(e) => Err((state, e)),

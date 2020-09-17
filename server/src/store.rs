@@ -20,7 +20,7 @@ impl std::fmt::Display for Error {
 pub trait Store {
     fn refresh(&mut self);
     fn size(&self) -> u64;
-    fn max_size() -> u64;
+    fn max_size(&self) -> u64;
     fn put(&mut self, expiry: std::time::SystemTime, secret: Vec<u8>) -> Result<String, Error>;
     fn get(&mut self, id: &str) -> Result<Vec<u8>, Error>;
 }
@@ -50,6 +50,8 @@ impl InMemory {
     }
 }
 
+unsafe impl Send for InMemory {}
+
 impl Store for InMemory {
     fn refresh(&mut self) {
         self.secrets
@@ -64,7 +66,7 @@ impl Store for InMemory {
     }
 
     #[inline]
-    fn max_size() -> u64 {
+    fn max_size(&self) -> u64 {
         Self::MAX_STORE_SIZE
     }
 
@@ -96,7 +98,6 @@ struct InFileSecret {
 }
 
 pub struct InFile {
-    path: std::path::PathBuf,
     secrets: std::collections::HashMap<String, InFileSecret>,
     size: u64,
 }
@@ -149,7 +150,7 @@ impl InFileSecret {
             .duration_since(std::time::UNIX_EPOCH)?
             .as_millis();
 
-        file.write(format!("passer\n{:014}\n", epoch_millis).as_bytes())?;
+        file.write_all(format!("passer\n{:014}\n", epoch_millis).as_bytes())?;
         Ok(())
     }
 }
@@ -157,26 +158,14 @@ impl InFileSecret {
 impl InFile {
     const MAX_STORE_SIZE: u64 = MAX_SECRET_SIZE * 30;
 
-    pub fn new(path: std::path::PathBuf) -> Self {
-        if !path.exists() {
-            log::info!(
-                "Store directory does not exist. Creating {}",
-                path.display()
-            );
-            std::fs::create_dir(&path).expect("Could not create store directory");
-
-            Self {
-                path,
-                secrets: Default::default(),
-                size: 0,
-            }
-        } else {
+    pub fn new(path: &std::path::PathBuf) -> Self {
+        if path.exists() {
             log::info!("Scanning store directory at {}", path.display());
             let reader = std::fs::read_dir(&path).expect("Could not open store directory");
 
             let secrets = reader
                 .filter_map(Result::ok)
-                .filter_map(Self::to_secret)
+                .filter_map(Self::map_secret)
                 .inspect(|secret| {
                     log::info!(
                         "Tracking secret {} for {}s",
@@ -191,17 +180,26 @@ impl InFile {
                 })
                 .collect::<std::collections::HashMap<_, _>>();
 
-            let size = secrets.values().map(|s| s.size).fold(0, |a, c| a + c);
+            let size = secrets.values().map(|s| s.size).sum();
+
+            Self { secrets, size }
+        } else {
+            log::info!(
+                "Store directory does not exist. Creating {}",
+                path.display()
+            );
+            std::fs::create_dir(&path).expect("Could not create store directory");
 
             Self {
-                path,
-                secrets,
-                size,
+                secrets: std::collections::HashMap::<_, _>::new(),
+                size: 0,
             }
         }
     }
 
-    fn to_secret(entry: std::fs::DirEntry) -> Option<(String, InFileSecret)> {
+    // Allowed for readability
+    #[allow(clippy::needless_pass_by_value)]
+    fn map_secret(entry: std::fs::DirEntry) -> Option<(String, InFileSecret)> {
         // Is it a file?
         if !entry.file_type().ok()?.is_file() {
             return None;
@@ -225,7 +223,7 @@ impl InFile {
     }
 
     fn remove(&mut self, id: &str) {
-        if let Some(mut secret) = self.secrets.get(id) {
+        if let Some(secret) = self.secrets.remove(id) {
             if let Err(e) = std::fs::remove_file(&secret.path) {
                 log::warn!(
                     "Could not delete secret file {}: {}. Untracking",
@@ -234,14 +232,14 @@ impl InFile {
                 );
             }
 
-            if self.secrets.remove(id).is_none() {
-                log::warn!("Could not untrack {}", id);
-            } else {
-                self.size -= secret.size;
-            }
+            self.size -= secret.size;
+        } else {
+            log::warn!("Could not untrack {}", id);
         }
     }
 }
+
+unsafe impl Send for InFile {}
 
 impl Store for InFile {
     fn refresh(&mut self) {
@@ -250,14 +248,14 @@ impl Store for InFile {
             .iter()
             .filter_map(|(id, secret)| {
                 if secret.expiry <= std::time::SystemTime::now() {
-                    Some(id)
+                    Some(id.clone())
                 } else {
                     None
                 }
             })
             .collect::<Vec<_>>();
 
-        for id in for_removal {
+        for id in &for_removal {
             self.remove(id);
         }
     }
@@ -267,7 +265,7 @@ impl Store for InFile {
     }
 
     #[inline]
-    fn max_size() -> u64 {
+    fn max_size(&self) -> u64 {
         Self::MAX_STORE_SIZE
     }
 

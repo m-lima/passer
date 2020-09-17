@@ -29,15 +29,13 @@ impl std::fmt::Display for Error {
 }
 
 impl Error {
-    fn to_handler_error(self) -> gotham::handler::HandlerError {
+    fn into_handler_error(self) -> gotham::handler::HandlerError {
         let status = match &self {
-            Self::FailedToAcquireStore => hyper::StatusCode::INTERNAL_SERVER_ERROR,
             Self::SecretNotFound => hyper::StatusCode::NOT_FOUND,
-            Self::NothingToInsert => hyper::StatusCode::BAD_REQUEST,
             Self::TooLarge => hyper::StatusCode::PAYLOAD_TOO_LARGE,
             Self::StoreFull => hyper::StatusCode::CONFLICT,
-            Self::InvalidExpiry => hyper::StatusCode::BAD_REQUEST,
-            Self::Unknown => hyper::StatusCode::INTERNAL_SERVER_ERROR,
+            Self::NothingToInsert | Self::InvalidExpiry => hyper::StatusCode::BAD_REQUEST,
+            Self::FailedToAcquireStore | Self::Unknown => hyper::StatusCode::INTERNAL_SERVER_ERROR,
         };
         gotham::handler::HandlerError::from(self).with_status(status)
     }
@@ -112,7 +110,7 @@ impl gotham::middleware::Middleware for Log {
                             || {
                                 gotham::state::client_addr(&state).map_or_else(
                                     || String::from("??"),
-                                    |addr| format!("{}", addr.ip().to_string()),
+                                    |addr| addr.ip().to_string(),
                                 )
                             },
                             |fwd| format!("{} [p]", fwd),
@@ -140,12 +138,12 @@ impl gotham::middleware::Middleware for Log {
 }
 
 #[derive(Clone, gotham_derive::StateData)]
-pub struct Store<S: store::Store + Send + 'static> {
-    store: std::sync::Arc<std::sync::Mutex<S>>,
+pub struct Store {
+    store: std::sync::Arc<std::sync::Mutex<Box<dyn store::Store + Send>>>,
 }
 
-impl<S: store::Store + Send + 'static> Store<S> {
-    pub fn new(store: S) -> Self {
+impl Store {
+    pub fn new(store: Box<dyn 'static + store::Store + Send>) -> Self {
         Self {
             store: std::sync::Arc::new(std::sync::Mutex::new(store)),
         }
@@ -157,49 +155,44 @@ impl<S: store::Store + Send + 'static> Store<S> {
         expiry: std::time::SystemTime,
     ) -> Result<String, gotham::handler::HandlerError> {
         if data.is_empty() {
-            return Err(Error::NothingToInsert.to_handler_error());
+            return Err(Error::NothingToInsert.into_handler_error());
         }
 
         let size = data.len() as u64;
         if size > store::MAX_SECRET_SIZE {
-            return Err(Error::TooLarge.to_handler_error());
+            return Err(Error::TooLarge.into_handler_error());
         }
 
         if expiry <= std::time::SystemTime::now() {
-            return Err(Error::InvalidExpiry.to_handler_error());
+            return Err(Error::InvalidExpiry.into_handler_error());
         }
-
-        let millis = expiry
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|_| Error::Unknown.to_handler_error())?
-            .as_millis();
 
         let mut store = self
             .store
             .lock()
-            .map_err(|_| Error::FailedToAcquireStore.to_handler_error())?;
+            .map_err(|_| Error::FailedToAcquireStore.into_handler_error())?;
 
         store.refresh();
 
-        if store.size() + size > S::max_size() {
-            return Err(Error::StoreFull.to_handler_error());
+        if store.size() + size > store.max_size() {
+            return Err(Error::StoreFull.into_handler_error());
         }
 
         store
             .put(expiry, data)
-            .map_err(|_| Error::Unknown.to_handler_error())
+            .map_err(|_| Error::Unknown.into_handler_error())
     }
 
     pub fn get(&mut self, key: &str) -> Result<Vec<u8>, gotham::handler::HandlerError> {
         let mut store = self
             .store
             .lock()
-            .map_err(|_| Error::FailedToAcquireStore.to_handler_error())?;
+            .map_err(|_| Error::FailedToAcquireStore.into_handler_error())?;
 
         store.refresh();
 
         store
             .get(key)
-            .map_err(|e| Error::from(e).to_handler_error())
+            .map_err(|e| Error::from(e).into_handler_error())
     }
 }
