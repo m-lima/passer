@@ -4,6 +4,7 @@
 mod handler;
 mod middleware;
 mod options;
+mod store;
 
 #[cfg(not(feature = "host-frontend"))]
 macro_rules! path {
@@ -47,29 +48,6 @@ macro_rules! add_routes {
     };
 }
 
-#[derive(Debug)]
-enum Error {
-    FailedToAcquireStore,
-    SecretNotFound,
-    NothingToInsert,
-    TooLarge,
-    StoreFull,
-}
-
-impl std::error::Error for Error {}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::FailedToAcquireStore => write!(fmt, "failed to acquire store"),
-            Self::SecretNotFound => write!(fmt, "secret not found"),
-            Self::NothingToInsert => write!(fmt, "nothing to insert"),
-            Self::TooLarge => write!(fmt, "payload too large"),
-            Self::StoreFull => write!(fmt, "store is full"),
-        }
-    }
-}
-
 #[derive(serde::Deserialize, gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
 struct IdExtractor {
     id: String,
@@ -80,10 +58,15 @@ fn router(mut options: options::Options) -> gotham::router::Router {
     use gotham::pipeline;
     use gotham::router::builder;
 
+    let store = options
+        .store_path
+        .map(store::InFile::new)
+        .unwrap_or_else(store::InMemory::new);
+
     if let Some(cors) = options.cors.take() {
         let pipeline = pipeline::new_pipeline()
             .add(middleware::Log)
-            .add(StateMiddleware::new(middleware::Store::new()))
+            .add(StateMiddleware::new(middleware::Store::new(store)))
             .add(middleware::Cors::new(cors))
             .build();
 
@@ -95,7 +78,7 @@ fn router(mut options: options::Options) -> gotham::router::Router {
     } else {
         let pipeline = pipeline::new_pipeline()
             .add(middleware::Log)
-            .add(StateMiddleware::new(middleware::Store::new()))
+            .add(StateMiddleware::new(middleware::Store::new(store)))
             .build();
 
         let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);

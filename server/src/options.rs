@@ -19,9 +19,13 @@ pub struct Options {
     #[clap(short, long, default_value = "0")]
     pub threads: u8,
 
+    /// Sets storage location
+    #[clap(short, long, parse(try_from_str = to_dir_path))]
+    pub store_path: Option<std::path::PathBuf>,
+
     /// The directory of the front-end content
     #[cfg(feature = "host-frontend")]
-    #[clap(short, long, parse(try_from_str = to_path))]
+    #[clap(short, long, parse(try_from_str = to_index_root))]
     pub web_path: (std::path::PathBuf, std::path::PathBuf),
 }
 
@@ -29,8 +33,17 @@ fn to_cors(value: &str) -> Result<hyper::header::HeaderValue, hyper::header::Inv
     hyper::header::HeaderValue::from_str(value)
 }
 
+fn to_dir_path(value: &str) -> Result<std::path::PathBuf, &'static str> {
+    let path = std::path::PathBuf::from(value);
+    if !path.is_dir() {
+        return Err("path is not a directory");
+    }
+
+    Ok(path)
+}
+
 #[cfg(feature = "host-frontend")]
-fn to_path(value: &str) -> Result<(std::path::PathBuf, std::path::PathBuf), &'static str> {
+fn to_index_root(value: &str) -> Result<(std::path::PathBuf, std::path::PathBuf), &'static str> {
     let path = std::path::PathBuf::from(value);
     if !path.is_dir() {
         return Err("path is not a directory");
