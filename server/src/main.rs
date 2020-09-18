@@ -59,7 +59,7 @@ fn router(mut options: options::Options) -> gotham::router::Router {
     use gotham::router::builder;
 
     let store: Box<dyn 'static + store::Store + Send> =
-        if let Some(ref store_path) = options.store_path {
+        if let Some(store_path) = options.store_path.take() {
             Box::new(store::InFile::new(store_path))
         } else {
             Box::new(store::InMemory::new())

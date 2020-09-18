@@ -100,15 +100,30 @@ struct InFileSecret {
 
 pub struct InFile {
     secrets: std::collections::HashMap<String, InFileSecret>,
-    size: u64,
+    path: std::path::PathBuf,
+}
+
+impl std::ops::Drop for InFileSecret {
+    fn drop(&mut self) {
+        if self.expired() {
+            if let Err(e) = std::fs::remove_file(&self.path) {
+                log::warn!(
+                    "Could not delete untracked secret file {}: {}",
+                    self.path.display(),
+                    e
+                );
+            }
+        }
+    }
 }
 
 impl InFileSecret {
+    const HEADER_SIZE: usize = 7 + 15;
+
     fn read(path: std::path::PathBuf) -> Option<Self> {
         use std::io::Read;
 
         const MAGIC_HEADER_LENGTH: usize = 7;
-        const EXPIRY_LENGTH: usize = 15;
 
         let mut file = std::fs::File::open(&path).ok()?;
 
@@ -119,13 +134,13 @@ impl InFileSecret {
             return None;
         }
 
-        if b'\n' != buffer[MAGIC_HEADER_LENGTH + EXPIRY_LENGTH] {
+        if b'\n' != buffer[Self::HEADER_SIZE - 1] {
             return None;
         }
 
         let expiry = {
             let mut millis: u64 = 0;
-            for c in &buffer[MAGIC_HEADER_LENGTH..EXPIRY_LENGTH - 1] {
+            for c in &buffer[MAGIC_HEADER_LENGTH + 1..Self::HEADER_SIZE - 1] {
                 if *c < b'0' || *c > b'9' {
                     return None;
                 }
@@ -141,7 +156,7 @@ impl InFileSecret {
         Some(Self { expiry, size, path })
     }
 
-    fn write(&self) -> Result<(), Box<dyn std::error::Error>> {
+    fn write(&self, data: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
         use std::io::Write;
 
         let mut file = std::fs::File::create(&self.path)?;
@@ -152,14 +167,19 @@ impl InFileSecret {
             .as_millis();
 
         file.write_all(format!("passer\n{:014}\n", epoch_millis).as_bytes())?;
+        file.write_all(data)?;
         Ok(())
+    }
+
+    fn expired(&self) -> bool {
+        self.expiry <= std::time::SystemTime::now()
     }
 }
 
 impl InFile {
     const MAX_STORE_SIZE: u64 = MAX_SECRET_SIZE * 30;
 
-    pub fn new(path: &std::path::PathBuf) -> Self {
+    pub fn new(path: std::path::PathBuf) -> Self {
         log::info!("Serving secrets from file system");
         if path.exists() {
             log::info!("Scanning store directory at {}", path.display());
@@ -182,9 +202,7 @@ impl InFile {
                 })
                 .collect::<std::collections::HashMap<_, _>>();
 
-            let size = secrets.values().map(|s| s.size).sum();
-
-            Self { secrets, size }
+            Self { secrets, path }
         } else {
             log::info!(
                 "Store directory does not exist. Creating {}",
@@ -194,7 +212,7 @@ impl InFile {
 
             Self {
                 secrets: std::collections::HashMap::<_, _>::new(),
-                size: 0,
+                path,
             }
         }
     }
@@ -223,47 +241,17 @@ impl InFile {
 
         Some((id, secret))
     }
-
-    fn remove(&mut self, id: &str) {
-        if let Some(secret) = self.secrets.remove(id) {
-            if let Err(e) = std::fs::remove_file(&secret.path) {
-                log::warn!(
-                    "Could not delete secret file {}: {}. Untracking",
-                    secret.path.display(),
-                    e
-                );
-            }
-
-            self.size -= secret.size;
-        } else {
-            log::warn!("Could not untrack {}", id);
-        }
-    }
 }
 
 unsafe impl Send for InFile {}
 
 impl Store for InFile {
     fn refresh(&mut self) {
-        let for_removal = self
-            .secrets
-            .iter()
-            .filter_map(|(id, secret)| {
-                if secret.expiry <= std::time::SystemTime::now() {
-                    Some(id.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        for id in &for_removal {
-            self.remove(id);
-        }
+        self.secrets.retain(|_, secret| !secret.expired());
     }
 
     fn size(&self) -> u64 {
-        self.size
+        self.secrets.values().map(|s| s.size).sum()
     }
 
     #[inline]
@@ -271,22 +259,22 @@ impl Store for InFile {
         Self::MAX_STORE_SIZE
     }
 
-    fn put(&mut self, expiry: std::time::SystemTime, secret: Vec<u8>) -> Result<String, Error> {
+    fn put(&mut self, expiry: std::time::SystemTime, data: Vec<u8>) -> Result<String, Error> {
         let (id, path) = loop {
             let id = new_id();
             if !self.secrets.contains_key(&id) {
-                let path = std::path::PathBuf::from(&id);
+                let path = self.path.join(&id);
                 if !path.exists() {
                     break (id, path);
                 }
             }
         };
 
-        let size = secret.len() as u64;
+        let size = (data.len() + InFileSecret::HEADER_SIZE) as u64;
 
-        let secret = InFileSecret { expiry, path, size };
+        let mut secret = InFileSecret { expiry, path, size };
 
-        if let Err(e) = secret.write() {
+        if let Err(e) = secret.write(&data) {
             log::warn!(
                 "Could not create secret file [{}]({}): {}",
                 id,
@@ -294,14 +282,7 @@ impl Store for InFile {
                 e
             );
 
-            if let Err(e) = std::fs::remove_file(&secret.path) {
-                log::warn!(
-                    "Failed to clean up malformed secret file {}: {}",
-                    secret.path.display(),
-                    e
-                );
-            }
-
+            secret.expiry = std::time::UNIX_EPOCH;
             return Err(Error::Unknown(e));
         }
 
@@ -312,7 +293,8 @@ impl Store for InFile {
     fn get(&mut self, id: &str) -> Result<Vec<u8>, Error> {
         use std::io::Read;
 
-        let secret = self.secrets.get(id).ok_or(Error::SecretNotFound)?;
+        let mut secret = self.secrets.remove(id).ok_or(Error::SecretNotFound)?;
+        secret.expiry = std::time::UNIX_EPOCH;
 
         let mut file =
             std::fs::File::open(&secret.path).map_err(|e| Error::Unknown(Box::new(e)))?;
@@ -320,8 +302,6 @@ impl Store for InFile {
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)
             .map_err(|e| Error::Unknown(Box::new(e)))?;
-
-        self.remove(id);
 
         Ok(buffer)
     }
@@ -331,35 +311,130 @@ impl Store for InFile {
 mod tests {
     use super::InFile;
 
-    #[test]
-    fn scan_directory() {
-        let store = InFile::new(&std::path::PathBuf::from("res/test/store/"));
+    struct TempDir(std::path::PathBuf);
 
-        assert_eq!(store.secrets.len(), 3);
-        assert!(store
-            .secrets
-            .contains_key("file1dNzbGlJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw"));
-        assert!(store
-            .secrets
-            .contains_key("file2ddLczRYTWR5T3FzdWUtUnR3a1RNbE9HTVBzRHZRSEliNzhFNUlOaw"));
-        assert!(store
-            .secrets
-            .contains_key("oldfile1bGlJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw"));
+    impl std::ops::Drop for TempDir {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.0).unwrap();
+        }
     }
 
     #[test]
     fn scan_directory() {
-        let store = InFile::new(&std::path::PathBuf::from("res/test/store/"));
+        let store = InFile::new(std::path::PathBuf::from("res/test/store/scan"));
 
-        assert_eq!(store.secrets.len(), 3);
+        assert_eq!(store.secrets.len(), 2);
         assert!(store
             .secrets
             .contains_key("file1dNzbGlJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw"));
         assert!(store
             .secrets
             .contains_key("file2ddLczRYTWR5T3FzdWUtUnR3a1RNbE9HTVBzRHZRSEliNzhFNUlOaw"));
-        assert!(store
-            .secrets
-            .contains_key("oldfile1bGlJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw"));
+    }
+
+    #[test]
+    fn accept_old_files() {
+        use super::Store;
+
+        const OLD_FILE_NAME: &str = "oldfile1bGlJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw";
+        let path = TempDir(std::path::PathBuf::from("res/test/store/scan_old"));
+
+        {
+            use std::io::Write;
+            std::fs::create_dir(&path.0).unwrap();
+            let mut old_file = std::fs::File::create(path.0.join(OLD_FILE_NAME)).unwrap();
+
+            old_file.write_all(b"passer\n").unwrap();
+            old_file.write_all(b"00000000000001\n").unwrap();
+            old_file.write_all(b"old_file\n").unwrap();
+        }
+
+        let mut store = InFile::new(path.0.clone());
+
+        assert_eq!(store.secrets.len(), 1);
+        assert!(store.secrets.contains_key(OLD_FILE_NAME));
+
+        store.refresh();
+        assert!(!store.secrets.contains_key(OLD_FILE_NAME));
+        assert!(!path.0.join(OLD_FILE_NAME).exists());
+    }
+
+    #[test]
+    fn create_directory() {
+        let path = TempDir(std::path::PathBuf::from("res/test/store/create_directory"));
+        assert!(!path.0.exists());
+
+        InFile::new(path.0.clone());
+        assert!(path.0.exists());
+        assert!(path.0.is_dir());
+    }
+
+    #[test]
+    fn put() {
+        use super::Store;
+        let path = TempDir(std::path::PathBuf::from("res/test/store/put"));
+
+        let mut store = InFile::new(path.0.clone());
+        let data: Vec<u8> = b"test"[..].into();
+        let id = store
+            .put(
+                std::time::SystemTime::now()
+                    .checked_add(std::time::Duration::from_secs(1))
+                    .unwrap(),
+                data,
+            )
+            .unwrap();
+
+        assert_eq!(id.len(), 43);
+        assert!(path.0.join(&id).exists());
+        assert!(path.0.join(&id).is_file());
+    }
+
+    #[test]
+    fn get() {
+        use super::Store;
+        let path = TempDir(std::path::PathBuf::from("res/test/store/get"));
+
+        let mut store = InFile::new(path.0.clone());
+        let data: Vec<u8> = b"test"[..].into();
+        let id = store
+            .put(
+                std::time::SystemTime::now()
+                    .checked_add(std::time::Duration::from_secs(1))
+                    .unwrap(),
+                data,
+            )
+            .unwrap();
+
+        let result = store.get(&id).unwrap();
+
+        assert!(!path.0.join(&id).exists());
+        assert_eq!(&result[..7], b"passer\n");
+        assert_eq!(result[7 + 14], b'\n');
+        assert_eq!(&result[7 + 15..], b"test");
+    }
+
+    #[test]
+    fn refresh() {
+        use super::Store;
+        let path = TempDir(std::path::PathBuf::from("res/test/store/refresh"));
+
+        let mut store = InFile::new(path.0.clone());
+        let data: Vec<u8> = b"test"[..].into();
+        let id = store
+            .put(
+                std::time::SystemTime::now()
+                    .checked_add(std::time::Duration::from_millis(50))
+                    .unwrap(),
+                data,
+            )
+            .unwrap();
+
+        assert!(path.0.join(&id).exists());
+        assert!(path.0.join(&id).is_file());
+        std::thread::sleep(std::time::Duration::from_millis(200));
+
+        store.refresh();
+        assert!(!path.0.join(&id).exists());
     }
 }
