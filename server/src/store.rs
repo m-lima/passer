@@ -360,6 +360,31 @@ mod tests {
     }
 
     #[test]
+    fn expiry() {
+        const EXPIRY_FILE_NAME: &str = "expiryfilelJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw";
+        let path = TempDir(std::path::PathBuf::from("res/test/store/expiry"));
+
+        {
+            use std::io::Write;
+            std::fs::create_dir(&path.0).unwrap();
+            let mut old_file = std::fs::File::create(path.0.join(EXPIRY_FILE_NAME)).unwrap();
+
+            old_file.write_all(b"passer\n").unwrap();
+            old_file.write_all(b"01234567890123\n").unwrap();
+            old_file.write_all(b"expiry\n").unwrap();
+        }
+
+        let store = InFile::new(path.0.clone());
+        let secret = store.secrets.get(EXPIRY_FILE_NAME).unwrap();
+        assert_eq!(
+            secret.expiry,
+            std::time::UNIX_EPOCH
+                .checked_add(std::time::Duration::from_millis(1_234_567_890_123))
+                .unwrap()
+        );
+    }
+
+    #[test]
     fn create_directory() {
         let path = TempDir(std::path::PathBuf::from("res/test/store/create_directory"));
         assert!(!path.0.exists());
@@ -436,5 +461,25 @@ mod tests {
 
         store.refresh();
         assert!(!path.0.join(&id).exists());
+    }
+
+    #[test]
+    fn size() {
+        use super::Store;
+        let path = TempDir(std::path::PathBuf::from("res/test/store/size"));
+
+        let mut store = InFile::new(path.0.clone());
+        let data: Vec<u8> = b"test"[..].into();
+        let id = store
+            .put(
+                std::time::SystemTime::now()
+                    .checked_add(std::time::Duration::from_secs(1))
+                    .unwrap(),
+                data,
+            )
+            .unwrap();
+
+        assert_eq!(store.size(), 7 + 15 + 4);
+        assert_eq!(path.0.join(&id).metadata().unwrap().len(), 7 + 15 + 4);
     }
 }
