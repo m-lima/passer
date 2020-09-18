@@ -44,6 +44,7 @@ impl InMemory {
     const MAX_STORE_SIZE: u64 = MAX_SECRET_SIZE * 10;
 
     pub fn new() -> Self {
+        log::info!("Serving secrets from memory");
         Self {
             secrets: std::collections::HashMap::<_, _>::new(),
         }
@@ -159,6 +160,7 @@ impl InFile {
     const MAX_STORE_SIZE: u64 = MAX_SECRET_SIZE * 30;
 
     pub fn new(path: &std::path::PathBuf) -> Self {
+        log::info!("Serving secrets from file system");
         if path.exists() {
             log::info!("Scanning store directory at {}", path.display());
             let reader = std::fs::read_dir(&path).expect("Could not open store directory");
@@ -211,7 +213,7 @@ impl InFile {
         if base64::decode_config(&id, base64::URL_SAFE_NO_PAD)
             .ok()?
             .len()
-            != 32
+            != 43
         {
             return None;
         }
@@ -322,5 +324,42 @@ impl Store for InFile {
         self.remove(id);
 
         Ok(buffer)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::InFile;
+
+    #[test]
+    fn scan_directory() {
+        let store = InFile::new(&std::path::PathBuf::from("res/test/store/"));
+
+        assert_eq!(store.secrets.len(), 3);
+        assert!(store
+            .secrets
+            .contains_key("file1dNzbGlJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw"));
+        assert!(store
+            .secrets
+            .contains_key("file2ddLczRYTWR5T3FzdWUtUnR3a1RNbE9HTVBzRHZRSEliNzhFNUlOaw"));
+        assert!(store
+            .secrets
+            .contains_key("oldfile1bGlJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw"));
+    }
+
+    #[test]
+    fn scan_directory() {
+        let store = InFile::new(&std::path::PathBuf::from("res/test/store/"));
+
+        assert_eq!(store.secrets.len(), 3);
+        assert!(store
+            .secrets
+            .contains_key("file1dNzbGlJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw"));
+        assert!(store
+            .secrets
+            .contains_key("file2ddLczRYTWR5T3FzdWUtUnR3a1RNbE9HTVBzRHZRSEliNzhFNUlOaw"));
+        assert!(store
+            .secrets
+            .contains_key("oldfile1bGlJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw"));
     }
 }
