@@ -1,9 +1,10 @@
-pub const MAX_SECRET_SIZE: u64 = 110 * 1024 * 1024;
-
 #[derive(Debug)]
 pub enum Error {
-    SecretNotFound,
-    Unknown(Box<dyn std::error::Error>),
+    TooLarge,
+    StoreFull,
+    InvalidExpiry,
+    BadSecret(String),
+    IO(std::io::Error),
 }
 
 impl std::error::Error for Error {}
@@ -11,173 +12,67 @@ impl std::error::Error for Error {}
 impl std::fmt::Display for Error {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::SecretNotFound => write!(fmt, "secret not found"),
-            Self::Unknown(e) => write!(fmt, "internal error: {}", e),
+            Self::TooLarge => write!(fmt, "payload too large"),
+            Self::StoreFull => write!(fmt, "store is full"),
+            Self::InvalidExpiry => write!(fmt, "invalid expiry"),
+            Self::BadSecret(e) => write!(fmt, "bad secret: {}", e),
+            Self::IO(e) => write!(fmt, "io error: {}", e),
         }
     }
 }
 
-pub trait Store {
-    fn refresh(&mut self);
-    fn size(&self) -> u64;
-    fn max_size(&self) -> u64;
-    fn put(&mut self, expiry: std::time::SystemTime, secret: Vec<u8>) -> Result<String, Error>;
-    fn get(&mut self, id: &str) -> Result<Vec<u8>, Error>;
+impl std::convert::From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Self::IO(e)
+    }
 }
 
-fn new_id() -> String {
-    use rand::Rng;
-    let id = rand::thread_rng().gen::<[u8; 32]>();
-    base64::encode_config(&id, base64::URL_SAFE_NO_PAD)
-}
-
-struct InMemorySecret {
-    expiry: std::time::SystemTime,
-    secret: Vec<u8>,
-}
-
-pub struct InMemory {
-    secrets: std::collections::HashMap<String, InMemorySecret>,
-}
-
-impl InMemory {
-    const MAX_STORE_SIZE: u64 = MAX_SECRET_SIZE * 10;
-
-    pub fn new() -> Self {
-        log::info!("Serving secrets from memory");
-        Self {
-            secrets: std::collections::HashMap::<_, _>::new(),
+impl std::convert::From<SecretError> for Error {
+    fn from(e: SecretError) -> Self {
+        match e {
+            SecretError::IO(e) => Self::IO(e),
+            SecretError::InvalidExpiry => Self::InvalidExpiry,
+            e => Self::BadSecret(e.to_string()),
         }
     }
 }
 
-unsafe impl Send for InMemory {}
+#[derive(Debug)]
+enum SecretError {
+    NotReadableFile,
+    BadName,
+    BadHeader,
+    InvalidExpiry,
+    IO(std::io::Error),
+}
 
-impl Store for InMemory {
-    fn refresh(&mut self) {
-        self.secrets
-            .retain(|_, secret| secret.expiry > std::time::SystemTime::now());
-    }
+impl std::error::Error for SecretError {}
 
-    fn size(&self) -> u64 {
-        self.secrets
-            .values()
-            .map(|s| s.secret.len())
-            .fold(0, |a, c| a + (c as u64))
-    }
-
-    #[inline]
-    fn max_size(&self) -> u64 {
-        Self::MAX_STORE_SIZE
-    }
-
-    fn put(&mut self, expiry: std::time::SystemTime, secret: Vec<u8>) -> Result<String, Error> {
-        let id = loop {
-            let id = new_id();
-            if !self.secrets.contains_key(&id) {
-                break id;
-            }
-        };
-
-        self.secrets
-            .insert(id.clone(), InMemorySecret { expiry, secret });
-        Ok(id)
-    }
-
-    fn get(&mut self, id: &str) -> Result<Vec<u8>, Error> {
-        self.secrets
-            .remove(id)
-            .map(|s| s.secret)
-            .ok_or(Error::SecretNotFound)
+impl std::fmt::Display for SecretError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotReadableFile => write!(fmt, "not a readable file"),
+            Self::BadName => write!(fmt, "bad name"),
+            Self::BadHeader => write!(fmt, "bad header"),
+            Self::InvalidExpiry => write!(fmt, "invalid expiry"),
+            Self::IO(e) => write!(fmt, "io error: {}", e),
+        }
     }
 }
 
-struct InFileSecret {
-    expiry: std::time::SystemTime,
-    path: std::path::PathBuf,
-    size: u64,
+impl std::convert::From<std::io::Error> for SecretError {
+    fn from(e: std::io::Error) -> Self {
+        Self::IO(e)
+    }
 }
 
-pub struct InFile {
-    secrets: std::collections::HashMap<String, InFileSecret>,
+pub struct Store {
+    secrets: std::collections::HashMap<String, Secret>,
     path: std::path::PathBuf,
 }
 
-impl std::ops::Drop for InFileSecret {
-    fn drop(&mut self) {
-        if self.expired() {
-            if let Err(e) = std::fs::remove_file(&self.path) {
-                log::warn!(
-                    "Could not delete untracked secret file {}: {}",
-                    self.path.display(),
-                    e
-                );
-            }
-        }
-    }
-}
-
-impl InFileSecret {
-    const HEADER_SIZE: usize = 7 + 15;
-
-    fn read(path: std::path::PathBuf) -> Option<Self> {
-        use std::io::Read;
-
-        const MAGIC_HEADER_LENGTH: usize = 7;
-
-        let mut file = std::fs::File::open(&path).ok()?;
-
-        let mut buffer = [0_u8; 23];
-        file.read_exact(&mut buffer).ok()?;
-
-        if b"passer\n" != &buffer[..MAGIC_HEADER_LENGTH] {
-            return None;
-        }
-
-        if b'\n' != buffer[Self::HEADER_SIZE - 1] {
-            return None;
-        }
-
-        let expiry = {
-            let mut millis: u64 = 0;
-            for c in &buffer[MAGIC_HEADER_LENGTH + 1..Self::HEADER_SIZE - 1] {
-                if *c < b'0' || *c > b'9' {
-                    return None;
-                }
-
-                millis *= 10;
-                millis += u64::from(*c - b'0');
-            }
-            std::time::UNIX_EPOCH.checked_add(std::time::Duration::from_millis(millis))?
-        };
-
-        let size = path.metadata().ok()?.len();
-
-        Some(Self { expiry, size, path })
-    }
-
-    fn write(&self, data: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-        use std::io::Write;
-
-        let mut file = std::fs::File::create(&self.path)?;
-
-        let epoch_millis = self
-            .expiry
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_millis();
-
-        file.write_all(format!("passer\n{:014}\n", epoch_millis).as_bytes())?;
-        file.write_all(data)?;
-        Ok(())
-    }
-
-    fn expired(&self) -> bool {
-        self.expiry <= std::time::SystemTime::now()
-    }
-}
-
-impl InFile {
-    const MAX_STORE_SIZE: u64 = MAX_SECRET_SIZE * 30;
+impl Store {
+    const MAX_SIZE: u64 = Secret::MAX_SIZE * 30;
 
     pub fn new(path: std::path::PathBuf) -> Self {
         log::info!("Serving secrets from file system");
@@ -187,7 +82,17 @@ impl InFile {
 
             let secrets = reader
                 .filter_map(Result::ok)
-                .filter_map(Self::map_secret)
+                .inspect(|file| log::info!("Scanning {}", file.path().display()))
+                .map(Self::map_secret)
+                .inspect(|secret| {
+                    if let Err(e) = secret {
+                        match e {
+                            SecretError::IO(e) => log::warn!("Ignoring secret: {}", e),
+                            e => log::info!("Ignoring secret: {}", e),
+                        }
+                    }
+                })
+                .filter_map(Result::ok)
                 .inspect(|secret| {
                     log::info!(
                         "Tracking secret {} for {}s",
@@ -217,49 +122,25 @@ impl InFile {
         }
     }
 
-    // Allowed for readability
-    #[allow(clippy::needless_pass_by_value)]
-    fn map_secret(entry: std::fs::DirEntry) -> Option<(String, InFileSecret)> {
-        // Is it a file?
-        if !entry.file_type().ok()?.is_file() {
-            return None;
-        }
-
-        let id = entry.file_name().into_string().ok()?;
-
-        // Does the name fit expectations?
-        if base64::decode_config(&id, base64::URL_SAFE_NO_PAD)
-            .ok()?
-            .len()
-            != 43
-        {
-            return None;
-        }
-
-        // Is it a valid file?
-        let secret = InFileSecret::read(entry.path())?;
-
-        Some((id, secret))
-    }
-}
-
-unsafe impl Send for InFile {}
-
-impl Store for InFile {
-    fn refresh(&mut self) {
+    pub fn refresh(&mut self) {
         self.secrets.retain(|_, secret| !secret.expired());
     }
 
-    fn size(&self) -> u64 {
+    pub fn size(&self) -> u64 {
         self.secrets.values().map(|s| s.size).sum()
     }
 
-    #[inline]
-    fn max_size(&self) -> u64 {
-        Self::MAX_STORE_SIZE
-    }
+    pub fn put(&mut self, expiry: std::time::SystemTime, data: &[u8]) -> Result<String, Error> {
+        let size = (data.len() + Secret::HEADER_SIZE) as u64;
 
-    fn put(&mut self, expiry: std::time::SystemTime, data: Vec<u8>) -> Result<String, Error> {
+        if size > Secret::MAX_SIZE {
+            return Err(Error::TooLarge);
+        }
+
+        if self.size() + size > Self::MAX_SIZE {
+            return Err(Error::StoreFull);
+        }
+
         let (id, path) = loop {
             let id = new_id();
             if !self.secrets.contains_key(&id) {
@@ -270,9 +151,7 @@ impl Store for InFile {
             }
         };
 
-        let size = (data.len() + InFileSecret::HEADER_SIZE) as u64;
-
-        let mut secret = InFileSecret { expiry, path, size };
+        let mut secret = Secret { expiry, path, size };
 
         if let Err(e) = secret.write(&data) {
             log::warn!(
@@ -283,35 +162,166 @@ impl Store for InFile {
             );
 
             secret.expiry = std::time::UNIX_EPOCH;
-            return Err(Error::Unknown(e));
+            return Err(e.into());
         }
 
         self.secrets.insert(id.clone(), secret);
         Ok(id)
     }
 
-    fn get(&mut self, id: &str) -> Result<Vec<u8>, Error> {
+    pub fn get(&mut self, id: &str) -> Result<Option<Vec<u8>>, Error> {
         use std::io::Read;
+        use std::io::Seek;
 
-        let mut secret = self.secrets.remove(id).ok_or(Error::SecretNotFound)?;
+        let mut secret = match self.secrets.remove(id) {
+            Some(secret) => secret,
+            None => return Ok(None),
+        };
         secret.expiry = std::time::UNIX_EPOCH;
 
-        let mut file =
-            std::fs::File::open(&secret.path).map_err(|e| Error::Unknown(Box::new(e)))?;
+        let mut file = std::fs::File::open(&secret.path)?;
 
         let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer)
-            .map_err(|e| Error::Unknown(Box::new(e)))?;
+        file.seek(std::io::SeekFrom::Start(Secret::HEADER_SIZE as u64))?;
+        file.read_to_end(&mut buffer)?;
 
-        Ok(buffer)
+        Ok(Some(buffer))
     }
+
+    // Allowed for readability
+    #[allow(clippy::needless_pass_by_value)]
+    fn map_secret(entry: std::fs::DirEntry) -> Result<(String, Secret), SecretError> {
+        // Is it a file?
+        if !entry.file_type()?.is_file() {
+            return Err(SecretError::NotReadableFile);
+        }
+
+        let id = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| SecretError::BadName)?;
+
+        // Does the name fit expectations?
+        if base64::decode_config(&id, base64::URL_SAFE_NO_PAD)
+            .map_err(|_| SecretError::BadName)?
+            .len()
+            != 43
+        {
+            return Err(SecretError::BadName);
+        }
+
+        // Is it a valid file?
+        let secret = Secret::read(entry.path())?;
+
+        Ok((id, secret))
+    }
+}
+
+struct Secret {
+    expiry: std::time::SystemTime,
+    path: std::path::PathBuf,
+    size: u64,
+}
+
+impl Secret {
+    const MAX_SIZE: u64 = 110 * 1024 * 1024;
+
+    const HEADER_SIZE: usize = Self::MAGIC_NUMBER_LENGTH + Self::EXPIRY_LENGTH;
+    const MAGIC_NUMBER_LENGTH: usize = 6 + 1;
+    const EXPIRY_LENGTH: usize = 14 + 1;
+
+    fn read(path: std::path::PathBuf) -> Result<Self, SecretError> {
+        use std::io::Read;
+
+        let mut file = std::fs::File::open(&path)?;
+
+        let mut buffer = [0_u8; Self::HEADER_SIZE];
+        file.read_exact(&mut buffer)?;
+
+        if b"passer\n" != &buffer[..Self::MAGIC_NUMBER_LENGTH] {
+            return Err(SecretError::BadHeader);
+        }
+
+        if b'\n' != buffer[Self::HEADER_SIZE - 1] {
+            return Err(SecretError::BadHeader);
+        }
+
+        let expiry = {
+            let mut millis: u64 = 0;
+            for c in &buffer[Self::MAGIC_NUMBER_LENGTH..Self::HEADER_SIZE - 1] {
+                if *c < b'0' || *c > b'9' {
+                    return Err(SecretError::InvalidExpiry);
+                }
+
+                millis *= 10;
+                millis += u64::from(*c - b'0');
+            }
+            std::time::UNIX_EPOCH
+                .checked_add(std::time::Duration::from_millis(millis))
+                .ok_or(SecretError::InvalidExpiry)?
+        };
+
+        let size = path.metadata()?.len();
+
+        Ok(Self { expiry, size, path })
+    }
+
+    fn write(&self, data: &[u8]) -> Result<(), SecretError> {
+        use std::io::Write;
+
+        let mut file = std::fs::File::create(&self.path)?;
+
+        let epoch_millis = self
+            .expiry
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| SecretError::InvalidExpiry)?
+            .as_millis();
+
+        file.write_all(format!("passer\n{:014}\n", epoch_millis).as_bytes())?;
+        file.write_all(data)?;
+        Ok(())
+    }
+
+    fn expired(&self) -> bool {
+        self.expiry <= std::time::SystemTime::now()
+    }
+}
+
+impl std::ops::Drop for Secret {
+    fn drop(&mut self) {
+        if self.expired() {
+            if let Err(e) = std::fs::remove_file(&self.path) {
+                log::warn!(
+                    "Could not delete untracked secret file {}: {}",
+                    self.path.display(),
+                    e
+                );
+            }
+        }
+    }
+}
+
+fn new_id() -> String {
+    use rand::Rng;
+    let id = rand::thread_rng().gen::<[u8; 32]>();
+    base64::encode_config(&id, base64::URL_SAFE_NO_PAD)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::InFile;
+    use super::Store;
 
     struct TempDir(std::path::PathBuf);
+
+    impl TempDir {
+        fn get(&self) -> &std::path::PathBuf {
+            &self.0
+        }
+
+        fn clone(&self) -> std::path::PathBuf {
+            self.0.clone()
+        }
+    }
 
     impl std::ops::Drop for TempDir {
         fn drop(&mut self) {
@@ -321,7 +331,7 @@ mod tests {
 
     #[test]
     fn scan_directory() {
-        let store = InFile::new(std::path::PathBuf::from("res/test/store/scan"));
+        let store = Store::new(std::path::PathBuf::from("res/test/store/scan"));
 
         assert_eq!(store.secrets.len(), 2);
         assert!(store
@@ -341,22 +351,22 @@ mod tests {
 
         {
             use std::io::Write;
-            std::fs::create_dir(&path.0).unwrap();
-            let mut old_file = std::fs::File::create(path.0.join(OLD_FILE_NAME)).unwrap();
+            std::fs::create_dir(path.get()).unwrap();
+            let mut old_file = std::fs::File::create(path.get().join(OLD_FILE_NAME)).unwrap();
 
             old_file.write_all(b"passer\n").unwrap();
             old_file.write_all(b"00000000000001\n").unwrap();
             old_file.write_all(b"old_file\n").unwrap();
         }
 
-        let mut store = InFile::new(path.0.clone());
+        let mut store = Store::new(path.clone());
 
         assert_eq!(store.secrets.len(), 1);
         assert!(store.secrets.contains_key(OLD_FILE_NAME));
 
         store.refresh();
         assert!(!store.secrets.contains_key(OLD_FILE_NAME));
-        assert!(!path.0.join(OLD_FILE_NAME).exists());
+        assert!(!path.get().join(OLD_FILE_NAME).exists());
     }
 
     #[test]
@@ -366,15 +376,15 @@ mod tests {
 
         {
             use std::io::Write;
-            std::fs::create_dir(&path.0).unwrap();
-            let mut old_file = std::fs::File::create(path.0.join(EXPIRY_FILE_NAME)).unwrap();
+            std::fs::create_dir(path.get()).unwrap();
+            let mut old_file = std::fs::File::create(path.get().join(EXPIRY_FILE_NAME)).unwrap();
 
             old_file.write_all(b"passer\n").unwrap();
             old_file.write_all(b"01234567890123\n").unwrap();
             old_file.write_all(b"expiry\n").unwrap();
         }
 
-        let store = InFile::new(path.0.clone());
+        let store = Store::new(path.clone());
         let secret = store.secrets.get(EXPIRY_FILE_NAME).unwrap();
         assert_eq!(
             secret.expiry,
@@ -387,11 +397,11 @@ mod tests {
     #[test]
     fn create_directory() {
         let path = TempDir(std::path::PathBuf::from("res/test/store/create_directory"));
-        assert!(!path.0.exists());
+        assert!(!path.get().exists());
 
-        InFile::new(path.0.clone());
-        assert!(path.0.exists());
-        assert!(path.0.is_dir());
+        Store::new(path.clone());
+        assert!(path.get().exists());
+        assert!(path.get().is_dir());
     }
 
     #[test]
@@ -399,20 +409,20 @@ mod tests {
         use super::Store;
         let path = TempDir(std::path::PathBuf::from("res/test/store/put"));
 
-        let mut store = InFile::new(path.0.clone());
+        let mut store = Store::new(path.clone());
         let data: Vec<u8> = b"test"[..].into();
         let id = store
             .put(
                 std::time::SystemTime::now()
                     .checked_add(std::time::Duration::from_secs(1))
                     .unwrap(),
-                data,
+                &data,
             )
             .unwrap();
 
         assert_eq!(id.len(), 43);
-        assert!(path.0.join(&id).exists());
-        assert!(path.0.join(&id).is_file());
+        assert!(path.get().join(&id).exists());
+        assert!(path.get().join(&id).is_file());
     }
 
     #[test]
@@ -420,23 +430,21 @@ mod tests {
         use super::Store;
         let path = TempDir(std::path::PathBuf::from("res/test/store/get"));
 
-        let mut store = InFile::new(path.0.clone());
+        let mut store = Store::new(path.clone());
         let data: Vec<u8> = b"test"[..].into();
         let id = store
             .put(
                 std::time::SystemTime::now()
                     .checked_add(std::time::Duration::from_secs(1))
                     .unwrap(),
-                data,
+                &data,
             )
             .unwrap();
 
-        let result = store.get(&id).unwrap();
+        let result = store.get(&id).unwrap().unwrap();
 
-        assert!(!path.0.join(&id).exists());
-        assert_eq!(&result[..7], b"passer\n");
-        assert_eq!(result[7 + 14], b'\n');
-        assert_eq!(&result[7 + 15..], b"test");
+        assert!(!path.get().join(&id).exists());
+        assert_eq!(&result[..], b"test");
     }
 
     #[test]
@@ -444,23 +452,23 @@ mod tests {
         use super::Store;
         let path = TempDir(std::path::PathBuf::from("res/test/store/refresh"));
 
-        let mut store = InFile::new(path.0.clone());
+        let mut store = Store::new(path.clone());
         let data: Vec<u8> = b"test"[..].into();
         let id = store
             .put(
                 std::time::SystemTime::now()
                     .checked_add(std::time::Duration::from_millis(50))
                     .unwrap(),
-                data,
+                &data,
             )
             .unwrap();
 
-        assert!(path.0.join(&id).exists());
-        assert!(path.0.join(&id).is_file());
+        assert!(path.get().join(&id).exists());
+        assert!(path.get().join(&id).is_file());
         std::thread::sleep(std::time::Duration::from_millis(200));
 
         store.refresh();
-        assert!(!path.0.join(&id).exists());
+        assert!(!path.get().join(&id).exists());
     }
 
     #[test]
@@ -468,18 +476,18 @@ mod tests {
         use super::Store;
         let path = TempDir(std::path::PathBuf::from("res/test/store/size"));
 
-        let mut store = InFile::new(path.0.clone());
+        let mut store = Store::new(path.clone());
         let data: Vec<u8> = b"test"[..].into();
         let id = store
             .put(
                 std::time::SystemTime::now()
                     .checked_add(std::time::Duration::from_secs(1))
                     .unwrap(),
-                data,
+                &data,
             )
             .unwrap();
 
         assert_eq!(store.size(), 7 + 15 + 4);
-        assert_eq!(path.0.join(&id).metadata().unwrap().len(), 7 + 15 + 4);
+        assert_eq!(path.get().join(&id).metadata().unwrap().len(), 7 + 15 + 4);
     }
 }

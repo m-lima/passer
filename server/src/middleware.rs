@@ -1,15 +1,12 @@
 use super::store;
+
 use gotham::hyper;
 
 #[derive(Debug)]
-enum Error {
+pub enum Error {
     FailedToAcquireStore,
     SecretNotFound,
-    NothingToInsert,
-    TooLarge,
-    StoreFull,
-    InvalidExpiry,
-    Unknown,
+    Store(store::Error),
 }
 
 impl std::error::Error for Error {}
@@ -19,66 +16,14 @@ impl std::fmt::Display for Error {
         match self {
             Self::FailedToAcquireStore => write!(fmt, "failed to acquire store"),
             Self::SecretNotFound => write!(fmt, "secret not found"),
-            Self::NothingToInsert => write!(fmt, "nothing to insert"),
-            Self::TooLarge => write!(fmt, "payload too large"),
-            Self::StoreFull => write!(fmt, "store is full"),
-            Self::InvalidExpiry => write!(fmt, "invalid expiry time"),
-            Self::Unknown => write!(fmt, "unknown error"),
+            Self::Store(e) => write!(fmt, "backend store error: {}", e),
         }
-    }
-}
-
-impl Error {
-    fn into_handler_error(self) -> gotham::handler::HandlerError {
-        let status = match &self {
-            Self::SecretNotFound => hyper::StatusCode::NOT_FOUND,
-            Self::TooLarge => hyper::StatusCode::PAYLOAD_TOO_LARGE,
-            Self::StoreFull => hyper::StatusCode::CONFLICT,
-            Self::NothingToInsert | Self::InvalidExpiry => hyper::StatusCode::BAD_REQUEST,
-            Self::FailedToAcquireStore | Self::Unknown => hyper::StatusCode::INTERNAL_SERVER_ERROR,
-        };
-        gotham::handler::HandlerError::from(self).with_status(status)
     }
 }
 
 impl std::convert::From<store::Error> for Error {
-    fn from(err: store::Error) -> Self {
-        match err {
-            store::Error::SecretNotFound => Self::SecretNotFound,
-            store::Error::Unknown(_) => Self::Unknown,
-        }
-    }
-}
-
-#[derive(Clone, gotham_derive::NewMiddleware)]
-pub struct Cors(hyper::header::HeaderValue);
-
-impl Cors {
-    pub fn new(cors: hyper::header::HeaderValue) -> Self {
-        Self(cors)
-    }
-}
-
-impl gotham::middleware::Middleware for Cors {
-    fn call<C>(
-        self,
-        state: gotham::state::State,
-        chain: C,
-    ) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
-    where
-        C: FnOnce(gotham::state::State) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
-            + Send
-            + 'static,
-    {
-        Box::pin(async {
-            // Allowed because this is third-party code being flagged
-            #[allow(clippy::used_underscore_binding)]
-            chain(state).await.map(|(state, mut response)| {
-                let header = response.headers_mut();
-                header.insert(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN, self.0);
-                (state, response)
-            })
-        })
+    fn from(e: store::Error) -> Self {
+        Self::Store(e)
     }
 }
 
@@ -139,60 +84,50 @@ impl gotham::middleware::Middleware for Log {
 
 #[derive(Clone, gotham_derive::StateData)]
 pub struct Store {
-    store: std::sync::Arc<std::sync::Mutex<Box<dyn store::Store + Send>>>,
+    store: std::sync::Arc<std::sync::Mutex<store::Store>>,
 }
 
 impl Store {
-    pub fn new(store: Box<dyn 'static + store::Store + Send>) -> Self {
+    pub fn new(path: std::path::PathBuf) -> Self {
         Self {
-            store: std::sync::Arc::new(std::sync::Mutex::new(store)),
+            store: std::sync::Arc::new(std::sync::Mutex::new(store::Store::new(path))),
         }
     }
 
-    pub fn put(
-        &mut self,
-        data: Vec<u8>,
-        expiry: std::time::SystemTime,
-    ) -> Result<String, gotham::handler::HandlerError> {
-        if data.is_empty() {
-            return Err(Error::NothingToInsert.into_handler_error());
-        }
-
-        let size = data.len() as u64;
-        if size > store::MAX_SECRET_SIZE {
-            return Err(Error::TooLarge.into_handler_error());
-        }
-
-        if expiry <= std::time::SystemTime::now() {
-            return Err(Error::InvalidExpiry.into_handler_error());
-        }
-
-        let mut store = self
-            .store
-            .lock()
-            .map_err(|_| Error::FailedToAcquireStore.into_handler_error())?;
-
+    #[inline]
+    fn store(&mut self) -> Result<std::sync::MutexGuard<'_, store::Store>, Error> {
+        let mut store = self.store.lock().map_err(|_| Error::FailedToAcquireStore)?;
         store.refresh();
-
-        if store.size() + size > store.max_size() {
-            return Err(Error::StoreFull.into_handler_error());
-        }
-
-        store
-            .put(expiry, data)
-            .map_err(|_| Error::Unknown.into_handler_error())
+        Ok(store)
     }
 
-    pub fn get(&mut self, key: &str) -> Result<Vec<u8>, gotham::handler::HandlerError> {
-        let mut store = self
-            .store
-            .lock()
-            .map_err(|_| Error::FailedToAcquireStore.into_handler_error())?;
+    pub fn put(&mut self, data: &[u8], expiry: std::time::SystemTime) -> Result<String, Error> {
+        self.store()?.put(expiry, &data).map_err(|e| e.into())
+    }
 
-        store.refresh();
+    pub fn get(&mut self, key: &str) -> Result<Vec<u8>, Error> {
+        self.store()?.get(key)?.ok_or_else(|| Error::SecretNotFound)
+    }
+}
 
-        store
-            .get(key)
-            .map_err(|e| Error::from(e).into_handler_error())
+impl gotham::middleware::Middleware for Store {
+    fn call<Chain>(
+        self,
+        mut state: gotham::state::State,
+        chain: Chain,
+    ) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
+    where
+        Chain: FnOnce(gotham::state::State) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>,
+    {
+        state.put(self);
+        chain(state)
+    }
+}
+
+impl gotham::middleware::NewMiddleware for Store {
+    type Instance = Self;
+
+    fn new_middleware(&self) -> gotham::anyhow::Result<Self::Instance> {
+        Ok(self.clone())
     }
 }

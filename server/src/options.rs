@@ -1,5 +1,4 @@
 use clap::Clap;
-use gotham::hyper;
 
 pub fn parse() -> Options {
     Options::parse()
@@ -11,26 +10,18 @@ pub struct Options {
     #[clap(short, long, default_value = "80")]
     pub port: u16,
 
-    /// Sets the 'allow-origin' header
-    #[clap(short, long, parse(try_from_str = to_cors))]
-    pub cors: Option<hyper::header::HeaderValue>,
-
     /// Selects the number of threads to use. Zero for automatic
     #[clap(short, long, default_value = "0")]
     pub threads: u8,
 
     /// Sets storage location
     #[clap(short, long, parse(try_from_str = to_dir_path))]
-    pub store_path: Option<std::path::PathBuf>,
+    pub store_path: std::path::PathBuf,
 
     /// The directory of the front-end content
     #[cfg(feature = "host-frontend")]
     #[clap(short, long, parse(try_from_str = to_index_root))]
     pub web_path: (std::path::PathBuf, std::path::PathBuf),
-}
-
-fn to_cors(value: &str) -> Result<hyper::header::HeaderValue, hyper::header::InvalidHeaderValue> {
-    hyper::header::HeaderValue::from_str(value)
 }
 
 fn to_dir_path(value: &str) -> Result<std::path::PathBuf, &'static str> {
