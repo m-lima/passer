@@ -1,6 +1,7 @@
 use gotham::hyper;
 
 use super::middleware;
+use super::store::Id;
 
 #[derive(Debug)]
 enum Error {
@@ -59,15 +60,57 @@ impl Error {
     }
 }
 
-#[derive(serde::Deserialize, gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
-pub struct IdExtractor {
-    id: String,
+#[derive(gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
+pub struct IdExtractor(Id);
+
+impl<'de> serde::Deserialize<'de> for IdExtractor {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct Phantom;
+        impl<'de> serde::Deserialize<'de> for Phantom {
+            fn deserialize<D>(_: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                Ok(Phantom)
+            }
+        }
+
+        struct IdVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for IdVisitor {
+            type Value = Id;
+
+            fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                fmt.write_str("a 32-bit unsigned integer base64 encoded")
+            }
+
+            fn visit_map<M>(self, mut access: M) -> Result<Id, M::Error>
+            where
+                M: serde::de::MapAccess<'de>,
+            {
+                if let Some(entry) = access.next_entry::<Phantom, &str>()? {
+                    Id::decode(entry.1).map_err(|e| serde::de::Error::custom(e.to_string()))
+                } else {
+                    Err(serde::de::Error::custom(String::from(
+                        "nothing to deserialize",
+                    )))
+                }
+            }
+        }
+
+        Ok(IdExtractor(deserializer.deserialize_map(IdVisitor)?))
+    }
 }
 
 // #[derive(gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
 // pub struct TtlExtractor {
 //     ttl: std::time::Duration,
 // }
+
+// // impl gotham::extractor::QueryStringExtractor<std::time::Duration> for TtlExtractor {}
 
 // impl<'de> serde::Deserialize<'de> for TtlExtractor {
 //     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -77,14 +120,20 @@ pub struct IdExtractor {
 //         struct AmountVisitor;
 
 //         impl<'de> serde::de::Visitor<'de> for AmountVisitor {
-//             type Value = u8;
+//             type Value = u64;
 
 //             fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 //                 fmt.write_str("a single digit integer greater than zero")
 //             }
 
-//             fn visit(
+//             fn visit_u64<E>(self, v: &str) -> Result<Self::Value, D::Error>
+//             {
+//                 if v.is_empty() {
+//                     Err(Error::
+//                 Err(Error::invalid_type(Unexpected::Str(v), &self))
+//             }
 //         }
+//         deserializer.deserialize_(
 //     }
 // }
 
@@ -138,7 +187,7 @@ pub fn get(
     use gotham::handler::IntoResponse;
     use gotham::state::FromState;
 
-    let id = { IdExtractor::take_from(&mut state).id };
+    let id = IdExtractor::take_from(&mut state).0;
     let store = middleware::Store::borrow_mut_from(&mut state);
 
     let response = store
@@ -176,7 +225,7 @@ pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handle
                             .unwrap(),
                     )
                     .map(|key| {
-                        let mut response = key.into_response(&state);
+                        let mut response = key.encode().into_response(&state);
                         *response.status_mut() = hyper::StatusCode::CREATED;
                         response
                     })

@@ -4,7 +4,8 @@
 [ ] Make a self-contained deployable package
 
 ## Server
-[ ] Accpet TTL
+[ ] Make HashMap key typed (intesad of String)
+[ ] Accept TTL
 [ ] Avoid deleting if key does not match
 [ ] Github actions
 [ ] Allow TLS in the bundled version

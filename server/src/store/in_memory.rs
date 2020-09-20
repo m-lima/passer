@@ -1,7 +1,8 @@
 use super::Error;
+use super::Id;
 
 pub struct Store {
-    secrets: std::collections::HashMap<String, Secret>,
+    secrets: std::collections::HashMap<Id, Secret>,
 }
 
 impl Store {
@@ -28,7 +29,7 @@ impl super::Store for Store {
             .retain(|_, secret| secret.expiry > std::time::SystemTime::now());
     }
 
-    fn put(&mut self, expiry: std::time::SystemTime, data: Vec<u8>) -> Result<String, Error> {
+    fn put(&mut self, expiry: std::time::SystemTime, data: Vec<u8>) -> Result<Id, Error> {
         let size = data.len() as u64;
 
         if size > super::MAX_SECRET_SIZE {
@@ -40,17 +41,17 @@ impl super::Store for Store {
         }
 
         let id = loop {
-            let id = super::new_id();
+            let id = Id::new();
             if !self.secrets.contains_key(&id) {
                 break id;
             }
         };
 
-        self.secrets.insert(id.clone(), Secret { expiry, data });
+        self.secrets.insert(id, Secret { expiry, data });
         Ok(id)
     }
 
-    fn get(&mut self, id: &str) -> Result<Vec<u8>, Error> {
+    fn get(&mut self, id: &Id) -> Result<Vec<u8>, Error> {
         self.secrets
             .remove(id)
             .map(|s| s.data)
@@ -81,7 +82,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(id.len(), 43);
+        assert_eq!(id.encode().len(), 43);
         assert_eq!(store.secrets.len(), 1);
     }
 

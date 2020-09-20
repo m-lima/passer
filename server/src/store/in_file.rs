@@ -1,4 +1,5 @@
 use super::Error;
+use super::Id;
 
 #[derive(Debug)]
 pub enum InternalError {
@@ -42,7 +43,7 @@ impl std::convert::Into<Error> for InternalError {
 }
 
 pub struct Store {
-    secrets: std::collections::HashMap<String, Secret>,
+    secrets: std::collections::HashMap<Id, Secret>,
     path: std::path::PathBuf,
 }
 
@@ -101,25 +102,19 @@ impl Store {
 
     // Allowed for readability
     #[allow(clippy::needless_pass_by_value)]
-    fn map_secret(entry: std::fs::DirEntry) -> Result<(String, Secret), InternalError> {
+    fn map_secret(entry: std::fs::DirEntry) -> Result<(Id, Secret), InternalError> {
         // Is it a file?
         if !entry.file_type()?.is_file() {
             return Err(InternalError::NotReadableFile);
         }
 
-        let id = entry
-            .file_name()
-            .into_string()
-            .map_err(|_| InternalError::BadName)?;
-
-        // Does the name fit expectations?
-        if base64::decode_config(&id, base64::URL_SAFE_NO_PAD)
-            .map_err(|_| InternalError::BadName)?
-            .len()
-            != 43
-        {
-            return Err(InternalError::BadName);
-        }
+        let id = Id::decode(
+            entry
+                .file_name()
+                .into_string()
+                .map_err(|_| InternalError::BadName)?,
+        )
+        .map_err(|_| InternalError::BadName)?;
 
         // Is it a valid file?
         let secret = Secret::read(entry.path())?;
@@ -138,7 +133,7 @@ impl super::Store for Store {
         self.secrets.retain(|_, secret| !secret.expired());
     }
 
-    fn put(&mut self, expiry: std::time::SystemTime, data: Vec<u8>) -> Result<String, Error> {
+    fn put(&mut self, expiry: std::time::SystemTime, data: Vec<u8>) -> Result<Id, Error> {
         let size = (data.len() + Secret::HEADER_SIZE) as u64;
 
         if size > super::MAX_SECRET_SIZE {
@@ -150,9 +145,9 @@ impl super::Store for Store {
         }
 
         let (id, path) = loop {
-            let id = super::new_id();
+            let id = Id::new();
             if !self.secrets.contains_key(&id) {
-                let path = self.path.join(&id);
+                let path = self.path.join(&id.encode());
                 if !path.exists() {
                     break (id, path);
                 }
@@ -173,11 +168,11 @@ impl super::Store for Store {
             return Err(e.into());
         }
 
-        self.secrets.insert(id.clone(), secret);
+        self.secrets.insert(id, secret);
         Ok(id)
     }
 
-    fn get(&mut self, id: &str) -> Result<Vec<u8>, Error> {
+    fn get(&mut self, id: &Id) -> Result<Vec<u8>, Error> {
         use std::io::Read;
         use std::io::Seek;
 
@@ -281,6 +276,7 @@ impl std::ops::Drop for Secret {
 
 #[cfg(test)]
 mod tests {
+    use super::super::Id;
     use super::super::Store as Trait;
     use super::Store;
 
@@ -309,15 +305,17 @@ mod tests {
         assert_eq!(store.secrets.len(), 2);
         assert!(store
             .secrets
-            .contains_key("file1dNzbGlJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw"));
+            .contains_key(&Id::decode("file_1____________________________________0").unwrap()));
         assert!(store
             .secrets
-            .contains_key("file2ddLczRYTWR5T3FzdWUtUnR3a1RNbE9HTVBzRHZRSEliNzhFNUlOaw"));
+            .contains_key(&Id::decode("file_2____________________________________0").unwrap()));
     }
 
     #[test]
     fn accept_old_files() {
-        const OLD_FILE_NAME: &str = "oldfile1bGlJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw";
+        const OLD_FILE_NAME: &str = "old_file__________________________________0";
+        let old_id = Id::decode(OLD_FILE_NAME).unwrap();
+
         let path = TempDir(std::path::PathBuf::from("res/test/store/scan_old"));
 
         {
@@ -333,16 +331,18 @@ mod tests {
         let mut store = Store::new(path.clone());
 
         assert_eq!(store.secrets.len(), 1);
-        assert!(store.secrets.contains_key(OLD_FILE_NAME));
+        assert!(store.secrets.contains_key(&old_id));
 
         store.refresh();
-        assert!(!store.secrets.contains_key(OLD_FILE_NAME));
+        assert!(!store.secrets.contains_key(&old_id));
         assert!(!path.get().join(OLD_FILE_NAME).exists());
     }
 
     #[test]
     fn expiry() {
-        const EXPIRY_FILE_NAME: &str = "expiryfilelJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw";
+        const EXPIRY_FILE_NAME: &str = "expiry_file_______________________________0";
+        let expiry_id = Id::decode(EXPIRY_FILE_NAME).unwrap();
+
         let path = TempDir(std::path::PathBuf::from("res/test/store/expiry"));
 
         {
@@ -356,7 +356,7 @@ mod tests {
         }
 
         let store = Store::new(path.clone());
-        let secret = store.secrets.get(EXPIRY_FILE_NAME).unwrap();
+        let secret = store.secrets.get(&expiry_id).unwrap();
         assert_eq!(
             secret.expiry,
             std::time::UNIX_EPOCH
@@ -388,7 +388,8 @@ mod tests {
                     .unwrap(),
                 data,
             )
-            .unwrap();
+            .unwrap()
+            .encode();
 
         assert_eq!(id.len(), 43);
         assert!(path.get().join(&id).exists());
@@ -412,7 +413,7 @@ mod tests {
 
         let result = store.get(&id).unwrap();
 
-        assert!(!path.get().join(&id).exists());
+        assert!(!path.get().join(&id.encode()).exists());
         assert_eq!(&result[..], b"test");
     }
 
@@ -429,7 +430,8 @@ mod tests {
                     .unwrap(),
                 data,
             )
-            .unwrap();
+            .unwrap()
+            .encode();
 
         assert!(path.get().join(&id).exists());
         assert!(path.get().join(&id).is_file());
@@ -452,7 +454,8 @@ mod tests {
                     .unwrap(),
                 data,
             )
-            .unwrap();
+            .unwrap()
+            .encode();
 
         assert_eq!(store.size(), 7 + 15 + 4);
         assert_eq!(path.get().join(&id).metadata().unwrap().len(), 7 + 15 + 4);

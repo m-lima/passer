@@ -60,10 +60,11 @@ pub fn route(options: Options) -> gotham::router::Router {
 
 #[cfg(test)]
 mod tests {
-    use super::super::options;
-    use super::route;
     use gotham::hyper;
     use gotham::test::TestServer;
+
+    use super::super::options;
+    use super::route;
 
     macro_rules! host_path {
         ($($path:literal)?) => {
@@ -198,11 +199,26 @@ mod tests {
         let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
-            .get(host_path!("foo"))
+            .get(host_path!("0___________________foo___________________0"))
             .perform()
             .unwrap();
 
         assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
+
+        let body = response.read_body().unwrap();
+        assert!(body.is_empty());
+    }
+
+    #[test]
+    fn reject_bad_ids() {
+        let test_server = TestServer::new(route(options())).unwrap();
+        let response = test_server
+            .client()
+            .get(host_path!("foo"))
+            .perform()
+            .unwrap();
+
+        assert_eq!(response.status(), hyper::StatusCode::BAD_REQUEST);
 
         let body = response.read_body().unwrap();
         assert!(body.is_empty());
@@ -235,7 +251,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "host-frontend")]
-    fn assests() {
+    fn assets() {
         let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
@@ -269,7 +285,7 @@ mod tests {
         let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
-            .get(host_path!("foo"))
+            .get(host_path!("0___________________foo___________________0"))
             .perform()
             .unwrap();
 

@@ -92,13 +92,17 @@ impl Store {
         }
     }
 
-    pub fn put(&mut self, data: Vec<u8>, expiry: std::time::SystemTime) -> Result<String, Error> {
+    pub fn put(
+        &mut self,
+        data: Vec<u8>,
+        expiry: std::time::SystemTime,
+    ) -> Result<store::Id, Error> {
         let mut store = self.store.lock().map_err(|_| Error::FailedToAcquireStore)?;
         store.refresh();
         store.put(expiry, data).map_err(Error::Store)
     }
 
-    pub fn get(&mut self, key: &str) -> Result<Vec<u8>, Error> {
+    pub fn get(&mut self, key: &store::Id) -> Result<Vec<u8>, Error> {
         let mut store = self.store.lock().map_err(|_| Error::FailedToAcquireStore)?;
         store.refresh();
         store.get(key).map_err(Error::Store)
