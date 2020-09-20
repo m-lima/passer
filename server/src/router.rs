@@ -1,5 +1,7 @@
+use super::handler;
 use super::middleware;
 use super::options::Options;
+use super::store;
 
 #[cfg(not(feature = "host-frontend"))]
 macro_rules! path {
@@ -15,43 +17,68 @@ macro_rules! path {
     };
 }
 
-macro_rules! add_routes {
-    ($route:ident, $options: ident) => {
-        use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
-        #[cfg(feature = "host-frontend")]
-        {
-            log::info!("Serving front-end at {}", $options.web_path.0.display());
-            $route
-                .get("/*")
-                .with_path_extractor::<gotham::handler::assets::FilePathExtractor>()
-                .to_new_handler($crate::handler::Index::new(
-                    $options.web_path.0.clone(),
-                    $options.web_path.1.clone(),
-                ));
-            $route.get("/").to_file($options.web_path.1.clone());
-        }
+// macro_rules! add_routes {
+//     ($route:ident, $options: ident) => {
+//         use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
+//         #[cfg(feature = "host-frontend")]
+//         {
+//             log::info!("Serving front-end at {}", $options.web_path.0.display());
+//             $route
+//                 .get("/*")
+//                 .with_path_extractor::<gotham::handler::assets::FilePathExtractor>()
+//                 .to_new_handler($crate::handler::Index::new(
+//                     $options.web_path.0,
+//                     $options.web_path.1.clone(),
+//                 ));
+//             $route.get("/").to_file($options.web_path.1);
+//         }
 
-        $route.post(path!()).to($crate::handler::post);
-        $route
-            .get(path!(":id"))
-            .with_path_extractor::<$crate::handler::IdExtractor>()
-            .to($crate::handler::get);
-    };
-}
+//         $route.post(path!()).to($crate::handler::post);
+//         $route
+//             .get(path!(":id"))
+//             .with_path_extractor::<IdExtractor>()
+//             .to($crate::handler::get);
+//     };
+// }
 
-pub fn route(options: &Options) -> gotham::router::Router {
+pub fn route(options: Options) -> gotham::router::Router {
     use gotham::pipeline;
     use gotham::router::builder;
 
+    #[cfg(feature = "host-frontend")]
+    let web_path = options.web_path;
+
     let pipeline = pipeline::new_pipeline()
         .add(middleware::Log)
-        .add(middleware::Store::new(options.store_path.clone()))
+        .add(options.store_path.map_or_else(
+            || middleware::Store::new(store::in_memory()),
+            |path| middleware::Store::new(store::in_file(path)),
+        ))
         .build();
 
     let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
 
     builder::build_router(chain, pipelines, |route| {
-        add_routes!(route, options);
+        use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
+
+        #[cfg(feature = "host-frontend")]
+        {
+            log::info!("Serving front-end at {}", web_path.0.display());
+            route
+                .get("/*")
+                .with_path_extractor::<gotham::handler::assets::FilePathExtractor>()
+                .to_new_handler(handler::Index::new(web_path.0, web_path.1.clone()));
+            route.get("/").to_file(web_path.1);
+        }
+
+        route
+            .post(path!())
+            // .with_query_string_extractor::<handler::TtlExtractor>()
+            .to(handler::post);
+        route
+            .get(path!(":id"))
+            .with_path_extractor::<handler::IdExtractor>()
+            .to(handler::get);
     })
 }
 
@@ -72,7 +99,7 @@ mod tests {
         options::Options {
             port: 0,
             threads: 0,
-            store_path: "res/test/store/route".into(),
+            store_path: None,
             #[cfg(feature = "host-frontend")]
             web_path: ("res/test".into(), "res/test/index".into()),
         }
@@ -120,7 +147,7 @@ mod tests {
 
     #[test]
     fn post_secret() {
-        let test_server = TestServer::new(route(&options())).unwrap();
+        let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
             .post(host_path!(), "foo", mime::TEXT_PLAIN)
@@ -135,7 +162,7 @@ mod tests {
 
     #[test]
     fn get_secret() {
-        let test_server = TestServer::new(route(&options())).unwrap();
+        let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
             .post(host_path!(), "foo", mime::TEXT_PLAIN)
@@ -162,7 +189,7 @@ mod tests {
 
     #[test]
     fn cannot_choose_key_to_put() {
-        let test_server = TestServer::new(route(&options())).unwrap();
+        let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
             .post(host_path!("my_key"), "foo", mime::TEXT_PLAIN)
@@ -177,7 +204,7 @@ mod tests {
 
     #[test]
     fn cannot_put_empty_values() {
-        let test_server = TestServer::new(route(&options())).unwrap();
+        let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
             .post(host_path!(), "", mime::TEXT_PLAIN)
@@ -192,7 +219,7 @@ mod tests {
 
     #[test]
     fn only_get_if_exists() {
-        let test_server = TestServer::new(route(&options())).unwrap();
+        let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
             .get(host_path!("foo"))
@@ -208,7 +235,7 @@ mod tests {
     #[test]
     #[cfg(feature = "host-frontend")]
     fn index() {
-        let test_server = TestServer::new(route(&options())).unwrap();
+        let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
             .get("http://localhost")
@@ -233,7 +260,7 @@ mod tests {
     #[test]
     #[cfg(feature = "host-frontend")]
     fn assests() {
-        let test_server = TestServer::new(route(&options())).unwrap();
+        let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
             .get("http://localhost/foo")
@@ -248,7 +275,7 @@ mod tests {
     #[test]
     #[cfg(feature = "host-frontend")]
     fn fallback_to_index() {
-        let test_server = TestServer::new(route(&options())).unwrap();
+        let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
             .get("http://localhost/bar")
@@ -263,7 +290,7 @@ mod tests {
     #[test]
     #[cfg(feature = "host-frontend")]
     fn api_still_gets_served() {
-        let test_server = TestServer::new(route(&options())).unwrap();
+        let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
             .get(host_path!("foo"))

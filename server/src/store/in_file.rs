@@ -1,44 +1,7 @@
-#[derive(Debug)]
-pub enum Error {
-    TooLarge,
-    StoreFull,
-    InvalidExpiry,
-    BadSecret(String),
-    IO(std::io::Error),
-}
-
-impl std::error::Error for Error {}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::TooLarge => write!(fmt, "payload too large"),
-            Self::StoreFull => write!(fmt, "store is full"),
-            Self::InvalidExpiry => write!(fmt, "invalid expiry"),
-            Self::BadSecret(e) => write!(fmt, "bad secret: {}", e),
-            Self::IO(e) => write!(fmt, "io error: {}", e),
-        }
-    }
-}
-
-impl std::convert::From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Self {
-        Self::IO(e)
-    }
-}
-
-impl std::convert::From<SecretError> for Error {
-    fn from(e: SecretError) -> Self {
-        match e {
-            SecretError::IO(e) => Self::IO(e),
-            SecretError::InvalidExpiry => Self::InvalidExpiry,
-            e => Self::BadSecret(e.to_string()),
-        }
-    }
-}
+use super::Error;
 
 #[derive(Debug)]
-enum SecretError {
+pub enum InternalError {
     NotReadableFile,
     BadName,
     BadHeader,
@@ -46,13 +9,13 @@ enum SecretError {
     IO(std::io::Error),
 }
 
-impl std::error::Error for SecretError {}
+impl std::error::Error for InternalError {}
 
-impl std::fmt::Display for SecretError {
+impl std::fmt::Display for InternalError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NotReadableFile => write!(fmt, "not a readable file"),
-            Self::BadName => write!(fmt, "bad name"),
+            Self::BadName => write!(fmt, "file name does not match expected pattern"),
             Self::BadHeader => write!(fmt, "bad header"),
             Self::InvalidExpiry => write!(fmt, "invalid expiry"),
             Self::IO(e) => write!(fmt, "io error: {}", e),
@@ -60,9 +23,21 @@ impl std::fmt::Display for SecretError {
     }
 }
 
-impl std::convert::From<std::io::Error> for SecretError {
+impl std::convert::From<std::io::Error> for InternalError {
     fn from(e: std::io::Error) -> Self {
         Self::IO(e)
+    }
+}
+
+impl std::convert::From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Self::Generic(e.to_string())
+    }
+}
+
+impl std::convert::Into<Error> for InternalError {
+    fn into(self) -> Error {
+        Error::Generic(self.to_string())
     }
 }
 
@@ -72,7 +47,7 @@ pub struct Store {
 }
 
 impl Store {
-    const MAX_SIZE: u64 = Secret::MAX_SIZE * 30;
+    const MAX_SIZE: u64 = super::MAX_SECRET_SIZE * 30;
 
     pub fn new(path: std::path::PathBuf) -> Self {
         log::info!("Serving secrets from file system");
@@ -84,26 +59,28 @@ impl Store {
                 .filter_map(Result::ok)
                 .inspect(|file| log::info!("Scanning {}", file.path().display()))
                 .map(Self::map_secret)
-                .inspect(|secret| {
-                    if let Err(e) = secret {
-                        match e {
-                            SecretError::IO(e) => log::warn!("Ignoring secret: {}", e),
-                            e => log::info!("Ignoring secret: {}", e),
-                        }
+                .filter_map(|secret| match secret {
+                    Ok(secret) => {
+                        log::info!(
+                            "Tracking secret {} for {}s",
+                            secret.1.path.display(),
+                            secret
+                                .1
+                                .expiry
+                                .duration_since(std::time::SystemTime::now())
+                                .map(|d| d.as_secs())
+                                .unwrap_or(0)
+                        );
+                        Some(secret)
                     }
-                })
-                .filter_map(Result::ok)
-                .inspect(|secret| {
-                    log::info!(
-                        "Tracking secret {} for {}s",
-                        secret.1.path.display(),
-                        secret
-                            .1
-                            .expiry
-                            .duration_since(std::time::SystemTime::now())
-                            .map(|d| d.as_secs())
-                            .unwrap_or(0)
-                    )
+                    Err(InternalError::IO(e)) => {
+                        log::warn!("Ignoring secret: {}", e);
+                        None
+                    }
+                    Err(e) => {
+                        log::info!("Ignoring secret: {}", e);
+                        None
+                    }
                 })
                 .collect::<std::collections::HashMap<_, _>>();
 
@@ -122,18 +99,49 @@ impl Store {
         }
     }
 
-    pub fn refresh(&mut self) {
+    // Allowed for readability
+    #[allow(clippy::needless_pass_by_value)]
+    fn map_secret(entry: std::fs::DirEntry) -> Result<(String, Secret), InternalError> {
+        // Is it a file?
+        if !entry.file_type()?.is_file() {
+            return Err(InternalError::NotReadableFile);
+        }
+
+        let id = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| InternalError::BadName)?;
+
+        // Does the name fit expectations?
+        if base64::decode_config(&id, base64::URL_SAFE_NO_PAD)
+            .map_err(|_| InternalError::BadName)?
+            .len()
+            != 43
+        {
+            return Err(InternalError::BadName);
+        }
+
+        // Is it a valid file?
+        let secret = Secret::read(entry.path())?;
+
+        Ok((id, secret))
+    }
+
+    #[inline]
+    fn size(&self) -> u64 {
+        self.secrets.values().map(|s| s.size).sum()
+    }
+}
+
+impl super::Store for Store {
+    fn refresh(&mut self) {
         self.secrets.retain(|_, secret| !secret.expired());
     }
 
-    pub fn size(&self) -> u64 {
-        self.secrets.values().map(|s| s.size).sum()
-    }
-
-    pub fn put(&mut self, expiry: std::time::SystemTime, data: &[u8]) -> Result<String, Error> {
+    fn put(&mut self, expiry: std::time::SystemTime, data: Vec<u8>) -> Result<String, Error> {
         let size = (data.len() + Secret::HEADER_SIZE) as u64;
 
-        if size > Secret::MAX_SIZE {
+        if size > super::MAX_SECRET_SIZE {
             return Err(Error::TooLarge);
         }
 
@@ -142,7 +150,7 @@ impl Store {
         }
 
         let (id, path) = loop {
-            let id = new_id();
+            let id = super::new_id();
             if !self.secrets.contains_key(&id) {
                 let path = self.path.join(&id);
                 if !path.exists() {
@@ -169,13 +177,13 @@ impl Store {
         Ok(id)
     }
 
-    pub fn get(&mut self, id: &str) -> Result<Option<Vec<u8>>, Error> {
+    fn get(&mut self, id: &str) -> Result<Vec<u8>, Error> {
         use std::io::Read;
         use std::io::Seek;
 
         let mut secret = match self.secrets.remove(id) {
             Some(secret) => secret,
-            None => return Ok(None),
+            None => return Err(Error::SecretNotFound),
         };
         secret.expiry = std::time::UNIX_EPOCH;
 
@@ -185,35 +193,7 @@ impl Store {
         file.seek(std::io::SeekFrom::Start(Secret::HEADER_SIZE as u64))?;
         file.read_to_end(&mut buffer)?;
 
-        Ok(Some(buffer))
-    }
-
-    // Allowed for readability
-    #[allow(clippy::needless_pass_by_value)]
-    fn map_secret(entry: std::fs::DirEntry) -> Result<(String, Secret), SecretError> {
-        // Is it a file?
-        if !entry.file_type()?.is_file() {
-            return Err(SecretError::NotReadableFile);
-        }
-
-        let id = entry
-            .file_name()
-            .into_string()
-            .map_err(|_| SecretError::BadName)?;
-
-        // Does the name fit expectations?
-        if base64::decode_config(&id, base64::URL_SAFE_NO_PAD)
-            .map_err(|_| SecretError::BadName)?
-            .len()
-            != 43
-        {
-            return Err(SecretError::BadName);
-        }
-
-        // Is it a valid file?
-        let secret = Secret::read(entry.path())?;
-
-        Ok((id, secret))
+        Ok(buffer)
     }
 }
 
@@ -224,13 +204,11 @@ struct Secret {
 }
 
 impl Secret {
-    const MAX_SIZE: u64 = 110 * 1024 * 1024;
-
     const HEADER_SIZE: usize = Self::MAGIC_NUMBER_LENGTH + Self::EXPIRY_LENGTH;
     const MAGIC_NUMBER_LENGTH: usize = 6 + 1;
     const EXPIRY_LENGTH: usize = 14 + 1;
 
-    fn read(path: std::path::PathBuf) -> Result<Self, SecretError> {
+    fn read(path: std::path::PathBuf) -> Result<Self, InternalError> {
         use std::io::Read;
 
         let mut file = std::fs::File::open(&path)?;
@@ -239,18 +217,18 @@ impl Secret {
         file.read_exact(&mut buffer)?;
 
         if b"passer\n" != &buffer[..Self::MAGIC_NUMBER_LENGTH] {
-            return Err(SecretError::BadHeader);
+            return Err(InternalError::BadHeader);
         }
 
         if b'\n' != buffer[Self::HEADER_SIZE - 1] {
-            return Err(SecretError::BadHeader);
+            return Err(InternalError::BadHeader);
         }
 
         let expiry = {
             let mut millis: u64 = 0;
             for c in &buffer[Self::MAGIC_NUMBER_LENGTH..Self::HEADER_SIZE - 1] {
                 if *c < b'0' || *c > b'9' {
-                    return Err(SecretError::InvalidExpiry);
+                    return Err(InternalError::InvalidExpiry);
                 }
 
                 millis *= 10;
@@ -258,7 +236,7 @@ impl Secret {
             }
             std::time::UNIX_EPOCH
                 .checked_add(std::time::Duration::from_millis(millis))
-                .ok_or(SecretError::InvalidExpiry)?
+                .ok_or(InternalError::InvalidExpiry)?
         };
 
         let size = path.metadata()?.len();
@@ -266,7 +244,7 @@ impl Secret {
         Ok(Self { expiry, size, path })
     }
 
-    fn write(&self, data: &[u8]) -> Result<(), SecretError> {
+    fn write(&self, data: &[u8]) -> Result<(), InternalError> {
         use std::io::Write;
 
         let mut file = std::fs::File::create(&self.path)?;
@@ -274,7 +252,7 @@ impl Secret {
         let epoch_millis = self
             .expiry
             .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|_| SecretError::InvalidExpiry)?
+            .map_err(|_| InternalError::InvalidExpiry)?
             .as_millis();
 
         file.write_all(format!("passer\n{:014}\n", epoch_millis).as_bytes())?;
@@ -301,14 +279,9 @@ impl std::ops::Drop for Secret {
     }
 }
 
-fn new_id() -> String {
-    use rand::Rng;
-    let id = rand::thread_rng().gen::<[u8; 32]>();
-    base64::encode_config(&id, base64::URL_SAFE_NO_PAD)
-}
-
 #[cfg(test)]
 mod tests {
+    use super::super::Store as Trait;
     use super::Store;
 
     struct TempDir(std::path::PathBuf);
@@ -344,8 +317,6 @@ mod tests {
 
     #[test]
     fn accept_old_files() {
-        use super::Store;
-
         const OLD_FILE_NAME: &str = "oldfile1bGlJSjJ6dUFBYlJVLXFfUmRzMVRTSEJEMHpwM3ppaEtON21Hcw";
         let path = TempDir(std::path::PathBuf::from("res/test/store/scan_old"));
 
@@ -406,7 +377,6 @@ mod tests {
 
     #[test]
     fn put() {
-        use super::Store;
         let path = TempDir(std::path::PathBuf::from("res/test/store/put"));
 
         let mut store = Store::new(path.clone());
@@ -416,7 +386,7 @@ mod tests {
                 std::time::SystemTime::now()
                     .checked_add(std::time::Duration::from_secs(1))
                     .unwrap(),
-                &data,
+                data,
             )
             .unwrap();
 
@@ -427,7 +397,6 @@ mod tests {
 
     #[test]
     fn get() {
-        use super::Store;
         let path = TempDir(std::path::PathBuf::from("res/test/store/get"));
 
         let mut store = Store::new(path.clone());
@@ -437,11 +406,11 @@ mod tests {
                 std::time::SystemTime::now()
                     .checked_add(std::time::Duration::from_secs(1))
                     .unwrap(),
-                &data,
+                data,
             )
             .unwrap();
 
-        let result = store.get(&id).unwrap().unwrap();
+        let result = store.get(&id).unwrap();
 
         assert!(!path.get().join(&id).exists());
         assert_eq!(&result[..], b"test");
@@ -449,7 +418,6 @@ mod tests {
 
     #[test]
     fn refresh() {
-        use super::Store;
         let path = TempDir(std::path::PathBuf::from("res/test/store/refresh"));
 
         let mut store = Store::new(path.clone());
@@ -459,7 +427,7 @@ mod tests {
                 std::time::SystemTime::now()
                     .checked_add(std::time::Duration::from_millis(50))
                     .unwrap(),
-                &data,
+                data,
             )
             .unwrap();
 
@@ -473,7 +441,6 @@ mod tests {
 
     #[test]
     fn size() {
-        use super::Store;
         let path = TempDir(std::path::PathBuf::from("res/test/store/size"));
 
         let mut store = Store::new(path.clone());
@@ -483,7 +450,7 @@ mod tests {
                 std::time::SystemTime::now()
                     .checked_add(std::time::Duration::from_secs(1))
                     .unwrap(),
-                &data,
+                data,
             )
             .unwrap();
 

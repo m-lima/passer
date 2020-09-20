@@ -5,7 +5,6 @@ use gotham::hyper;
 #[derive(Debug)]
 pub enum Error {
     FailedToAcquireStore,
-    SecretNotFound,
     Store(store::Error),
 }
 
@@ -15,7 +14,6 @@ impl std::fmt::Display for Error {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::FailedToAcquireStore => write!(fmt, "failed to acquire store"),
-            Self::SecretNotFound => write!(fmt, "secret not found"),
             Self::Store(e) => write!(fmt, "backend store error: {}", e),
         }
     }
@@ -84,29 +82,26 @@ impl gotham::middleware::Middleware for Log {
 
 #[derive(Clone, gotham_derive::StateData)]
 pub struct Store {
-    store: std::sync::Arc<std::sync::Mutex<store::Store>>,
+    store: std::sync::Arc<std::sync::Mutex<dyn 'static + store::Store + Send>>,
 }
 
 impl Store {
-    pub fn new(path: std::path::PathBuf) -> Self {
+    pub fn new(store: impl 'static + store::Store + Send) -> Self {
         Self {
-            store: std::sync::Arc::new(std::sync::Mutex::new(store::Store::new(path))),
+            store: std::sync::Arc::new(std::sync::Mutex::new(store)),
         }
     }
 
-    #[inline]
-    fn store(&mut self) -> Result<std::sync::MutexGuard<'_, store::Store>, Error> {
+    pub fn put(&mut self, data: Vec<u8>, expiry: std::time::SystemTime) -> Result<String, Error> {
         let mut store = self.store.lock().map_err(|_| Error::FailedToAcquireStore)?;
         store.refresh();
-        Ok(store)
-    }
-
-    pub fn put(&mut self, data: &[u8], expiry: std::time::SystemTime) -> Result<String, Error> {
-        self.store()?.put(expiry, &data).map_err(|e| e.into())
+        store.put(expiry, data).map_err(Error::Store)
     }
 
     pub fn get(&mut self, key: &str) -> Result<Vec<u8>, Error> {
-        self.store()?.get(key)?.ok_or_else(|| Error::SecretNotFound)
+        let mut store = self.store.lock().map_err(|_| Error::FailedToAcquireStore)?;
+        store.refresh();
+        store.get(key).map_err(Error::Store)
     }
 }
 

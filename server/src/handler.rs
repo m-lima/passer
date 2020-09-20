@@ -4,12 +4,9 @@ use super::middleware;
 
 #[derive(Debug)]
 enum Error {
-    FailedToAcquireStore,
-    SecretNotFound,
     NothingToInsert,
-    TooLarge,
-    StoreFull,
     InvalidExpiry,
+    Middleware(middleware::Error),
     Unknown(String),
 }
 
@@ -18,12 +15,9 @@ impl std::error::Error for Error {}
 impl std::fmt::Display for Error {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::FailedToAcquireStore => write!(fmt, "failed to acquire store"),
-            Self::SecretNotFound => write!(fmt, "secret not found"),
             Self::NothingToInsert => write!(fmt, "nothing to insert"),
-            Self::TooLarge => write!(fmt, "payload too large"),
-            Self::StoreFull => write!(fmt, "store is full"),
-            Self::InvalidExpiry => write!(fmt, "invalid expiry time"),
+            Self::InvalidExpiry => write!(fmt, "invalid expiry"),
+            Self::Middleware(e) => write!(fmt, "{}", e),
             Self::Unknown(msg) => write!(fmt, "unknown error: {}", msg),
         }
     }
@@ -31,44 +25,38 @@ impl std::fmt::Display for Error {
 
 impl std::convert::From<middleware::Error> for Error {
     fn from(e: middleware::Error) -> Self {
-        use super::store::Error as StoreError;
-        use middleware::Error;
-
-        match e {
-            Error::FailedToAcquireStore => Self::FailedToAcquireStore,
-            Error::SecretNotFound => Self::SecretNotFound,
-            Error::Store(StoreError::TooLarge) => Self::TooLarge,
-            Error::Store(StoreError::StoreFull) => Self::StoreFull,
-            Error::Store(StoreError::InvalidExpiry) => Self::InvalidExpiry,
-            Error::Store(e) => Self::Unknown(e.to_string()),
-        }
+        Self::Middleware(e)
     }
 }
 
-fn map_to_handler_error(e: Error) -> gotham::handler::HandlerError {
-    let status = match &e {
-        Error::SecretNotFound => hyper::StatusCode::NOT_FOUND,
-        Error::TooLarge => hyper::StatusCode::PAYLOAD_TOO_LARGE,
-        Error::StoreFull => hyper::StatusCode::CONFLICT,
-        Error::NothingToInsert | Error::InvalidExpiry => hyper::StatusCode::BAD_REQUEST,
-        Error::FailedToAcquireStore | Error::Unknown(_) => hyper::StatusCode::INTERNAL_SERVER_ERROR,
-    };
+impl Error {
+    fn status_code(&self) -> hyper::StatusCode {
+        use super::store::Error as Store;
+        use middleware::Error as Middleware;
+        match self {
+            Error::NothingToInsert | Error::InvalidExpiry => hyper::StatusCode::BAD_REQUEST,
+            Error::Middleware(Middleware::Store(Store::TooLarge)) => {
+                hyper::StatusCode::PAYLOAD_TOO_LARGE
+            }
+            Error::Middleware(Middleware::Store(Store::StoreFull)) => hyper::StatusCode::CONFLICT,
+            Error::Middleware(Middleware::Store(Store::SecretNotFound)) => {
+                hyper::StatusCode::NOT_FOUND
+            }
+            _ => hyper::StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
 
-    log::warn!("{}", &e);
-    gotham::handler::HandlerError::from(e).with_status(status)
-}
+    fn into_response(self, state: &gotham::state::State) -> hyper::Response<hyper::Body> {
+        let status = self.status_code();
+        log::warn!("{} [{}]", &self, &status);
+        gotham::helpers::http::response::create_empty_response(state, status)
+    }
 
-fn map_to_response(e: &Error, state: &gotham::state::State) -> hyper::Response<hyper::Body> {
-    let status = match &e {
-        Error::SecretNotFound => hyper::StatusCode::NOT_FOUND,
-        Error::TooLarge => hyper::StatusCode::PAYLOAD_TOO_LARGE,
-        Error::StoreFull => hyper::StatusCode::CONFLICT,
-        Error::NothingToInsert | Error::InvalidExpiry => hyper::StatusCode::BAD_REQUEST,
-        Error::FailedToAcquireStore | Error::Unknown(_) => hyper::StatusCode::INTERNAL_SERVER_ERROR,
-    };
-
-    log::warn!("{}", &e);
-    gotham::helpers::http::response::create_empty_response(state, status)
+    fn into_handler_error(self) -> gotham::handler::HandlerError {
+        let status = self.status_code();
+        log::warn!("{} [{}]", &self, &status);
+        gotham::handler::HandlerError::from(self).with_status(status)
+    }
 }
 
 #[derive(serde::Deserialize, gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
@@ -153,10 +141,10 @@ pub fn get(
     let id = { IdExtractor::take_from(&mut state).id };
     let store = middleware::Store::borrow_mut_from(&mut state);
 
-    let response = store.get(&id).map_or_else(
-        |e| map_to_response(&e.into(), &state),
-        |r| r.into_response(&state),
-    );
+    let response = store
+        .get(&id)
+        .map_err(Error::from)
+        .map_or_else(|e| e.into_response(&state), |r| r.into_response(&state));
     (state, response)
 }
 
@@ -182,7 +170,7 @@ pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handle
                 let store = middleware::Store::borrow_mut_from(&mut state);
                 store
                     .put(
-                        &data,
+                        data,
                         std::time::SystemTime::now()
                             .checked_add(std::time::Duration::from_secs(24 * 60 * 60))
                             .unwrap(),
@@ -192,10 +180,12 @@ pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handle
                         *response.status_mut() = hyper::StatusCode::CREATED;
                         response
                     })
-                    .map_err(|e| e.into())
-            }) {
+                    .map_err(Error::from)
+            })
+            .map_err(Error::into_handler_error)
+        {
             Ok(r) => Ok((state, r)),
-            Err(e) => Err((state, map_to_handler_error(e))),
+            Err(e) => Err((state, e)),
         }
     })
 }

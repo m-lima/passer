@@ -16,7 +16,7 @@ pub struct Options {
 
     /// Sets storage location
     #[clap(short, long, parse(try_from_str = to_dir_path))]
-    pub store_path: std::path::PathBuf,
+    pub store_path: Option<std::path::PathBuf>,
 
     /// The directory of the front-end content
     #[cfg(feature = "host-frontend")]
