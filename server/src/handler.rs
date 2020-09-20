@@ -60,82 +60,84 @@ impl Error {
     }
 }
 
-#[derive(gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
-pub struct IdExtractor(Id);
-
-impl<'de> serde::Deserialize<'de> for IdExtractor {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct Phantom;
-        impl<'de> serde::Deserialize<'de> for Phantom {
-            fn deserialize<D>(_: D) -> Result<Self, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                Ok(Phantom)
-            }
-        }
-
-        struct IdVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for IdVisitor {
-            type Value = Id;
-
-            fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                fmt.write_str("a 32-bit unsigned integer base64 encoded")
-            }
-
-            fn visit_map<M>(self, mut access: M) -> Result<Id, M::Error>
-            where
-                M: serde::de::MapAccess<'de>,
-            {
-                if let Some(entry) = access.next_entry::<Phantom, &str>()? {
-                    Id::decode(entry.1).map_err(|e| serde::de::Error::custom(e.to_string()))
-                } else {
-                    Err(serde::de::Error::custom(String::from(
-                        "nothing to deserialize",
-                    )))
-                }
-            }
-        }
-
-        Ok(IdExtractor(deserializer.deserialize_map(IdVisitor)?))
-    }
+#[derive(serde::Deserialize, gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
+pub struct IdExtractor {
+    #[serde(deserialize_with = "id_deserializer")]
+    id: Id,
 }
 
-// #[derive(gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
-// pub struct TtlExtractor {
-//     ttl: std::time::Duration,
-// }
+fn id_deserializer<'de, D>(deserializer: D) -> Result<Id, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct IdVisitor;
 
-// // impl gotham::extractor::QueryStringExtractor<std::time::Duration> for TtlExtractor {}
+    impl<'de> serde::de::Visitor<'de> for IdVisitor {
+        type Value = Id;
 
-// impl<'de> serde::Deserialize<'de> for TtlExtractor {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: serde::Deserializer<'de>,
-//     {
-//         struct AmountVisitor;
+        fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fmt.write_str("a 32-bit unsigned integer base64 encoded")
+        }
 
-//         impl<'de> serde::de::Visitor<'de> for AmountVisitor {
-//             type Value = u64;
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Id::decode(value).map_err(|e| serde::de::Error::custom(e.to_string()))
+        }
+    }
 
-//             fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//                 fmt.write_str("a single digit integer greater than zero")
-//             }
+    deserializer.deserialize_str(IdVisitor)
+}
 
-//             fn visit_u64<E>(self, v: &str) -> Result<Self::Value, D::Error>
-//             {
-//                 if v.is_empty() {
-//                     Err(Error::
-//                 Err(Error::invalid_type(Unexpected::Str(v), &self))
-//             }
-//         }
-//         deserializer.deserialize_(
-//     }
-// }
+#[derive(serde::Deserialize, gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
+pub struct TtlExtractor {
+    #[serde(deserialize_with = "duration_deserializer")]
+    ttl: std::time::Duration,
+}
+
+fn duration_deserializer<'de, D>(deserializer: D) -> Result<std::time::Duration, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct TtlVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for TtlVisitor {
+        type Value = std::time::Duration;
+
+        fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fmt.write_str("a duration in <amount>[m|h|d] format")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            convert_str_to_duration(value).map_err(serde::de::Error::custom)
+        }
+    }
+
+    deserializer.deserialize_str(TtlVisitor)
+}
+
+fn convert_str_to_duration(value: &str) -> Result<std::time::Duration, String> {
+    let unit = match value.chars().last() {
+        Some('m') => 60,
+        Some('h') => 60 * 60,
+        Some('d') => 24 * 60 * 60,
+        Some(unit) => {
+            return Err(format!("invalid duration unit: {}", unit));
+        }
+        None => {
+            return Err(String::from("ttl is empty"));
+        }
+    };
+
+    let amount = value[..value.len() - 1]
+        .parse::<u64>()
+        .map_err(|e| format!("could not parse amount: {}", e))?;
+    Ok(std::time::Duration::from_secs(unit * amount))
+}
 
 #[cfg(feature = "host-frontend")]
 #[derive(Clone)]
@@ -187,7 +189,7 @@ pub fn get(
     use gotham::handler::IntoResponse;
     use gotham::state::FromState;
 
-    let id = IdExtractor::take_from(&mut state).0;
+    let id = IdExtractor::take_from(&mut state).id;
     let store = middleware::Store::borrow_mut_from(&mut state);
 
     let response = store
@@ -202,6 +204,9 @@ pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handle
         use gotham::handler::IntoResponse;
         use gotham::state::FromState;
         use hyper::{body, Body};
+
+        let ttl = TtlExtractor::take_from(&mut state).ttl;
+        let expiry = std::time::SystemTime::now() + ttl;
 
         // Allowed because this is third-party code being flagged
         #[allow(clippy::used_underscore_binding)]
@@ -218,12 +223,7 @@ pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handle
             .and_then(|data| {
                 let store = middleware::Store::borrow_mut_from(&mut state);
                 store
-                    .put(
-                        data,
-                        std::time::SystemTime::now()
-                            .checked_add(std::time::Duration::from_secs(24 * 60 * 60))
-                            .unwrap(),
-                    )
+                    .put(data, expiry)
                     .map(|key| {
                         let mut response = key.encode().into_response(&state);
                         *response.status_mut() = hyper::StatusCode::CREATED;
@@ -237,4 +237,84 @@ pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handle
             Err(e) => Err((state, e)),
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn can_deserialize_ttl() {
+        use super::convert_str_to_duration;
+
+        {
+            let ttl = "1m";
+            let duration = convert_str_to_duration(ttl).unwrap();
+            assert_eq!(duration, std::time::Duration::from_secs(60));
+        }
+        {
+            let ttl = "00009999m";
+            let duration = convert_str_to_duration(ttl).unwrap();
+            assert_eq!(duration, std::time::Duration::from_secs(9999 * 60));
+        }
+        {
+            let ttl = "2h";
+            let duration = convert_str_to_duration(ttl).unwrap();
+            assert_eq!(duration, std::time::Duration::from_secs(7200));
+        }
+        {
+            let ttl = "7d";
+            let duration = convert_str_to_duration(ttl).unwrap();
+            assert_eq!(duration, std::time::Duration::from_secs(7 * 24 * 60 * 60));
+        }
+    }
+
+    #[test]
+    fn reject_empty_ttl() {
+        use super::convert_str_to_duration;
+
+        let ttl = "";
+        if let Err(e) = convert_str_to_duration(ttl) {
+            assert_eq!(e, "ttl is empty");
+        } else {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn reject_unknown_ttl_unit() {
+        use super::convert_str_to_duration;
+
+        let ttl = "1t";
+        if let Err(e) = convert_str_to_duration(ttl) {
+            assert_eq!(e, "invalid duration unit: t");
+        } else {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn reject_empty_ttl_amount() {
+        use super::convert_str_to_duration;
+
+        let ttl = "h";
+        if let Err(e) = convert_str_to_duration(ttl) {
+            assert_eq!(
+                e,
+                "could not parse amount: cannot parse integer from empty string"
+            );
+        } else {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn reject_non_numeric_ttl_amount() {
+        use super::convert_str_to_duration;
+
+        let ttl = "12a3h";
+        if let Err(e) = convert_str_to_duration(ttl) {
+            assert_eq!(e, "could not parse amount: invalid digit found in string");
+        } else {
+            panic!();
+        }
+    }
 }

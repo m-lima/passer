@@ -49,7 +49,7 @@ pub fn route(options: Options) -> gotham::router::Router {
 
         route
             .post(path!())
-            // .with_query_string_extractor::<handler::TtlExtractor>()
+            .with_query_string_extractor::<handler::TtlExtractor>()
             .to(handler::post);
         route
             .get(path!(":id"))
@@ -127,7 +127,7 @@ mod tests {
         let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
-            .post(host_path!(), "foo", mime::TEXT_PLAIN)
+            .post(concat!(host_path!(), "?ttl=1m"), "foo", mime::TEXT_PLAIN)
             .perform()
             .unwrap();
 
@@ -142,7 +142,7 @@ mod tests {
         let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
-            .post(host_path!(), "foo", mime::TEXT_PLAIN)
+            .post(concat!(host_path!(), "?ttl=1m"), "foo", mime::TEXT_PLAIN)
             .perform()
             .unwrap();
 
@@ -169,7 +169,11 @@ mod tests {
         let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
-            .post(host_path!("my_key"), "foo", mime::TEXT_PLAIN)
+            .post(
+                concat!(host_path!("my_key"), "?ttl=1m"),
+                "foo",
+                mime::TEXT_PLAIN,
+            )
             .perform()
             .unwrap();
 
@@ -184,11 +188,68 @@ mod tests {
         let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
-            .post(host_path!(), "", mime::TEXT_PLAIN)
+            .post(concat!(host_path!(), "?ttl=1m"), "", mime::TEXT_PLAIN)
             .perform()
             .unwrap();
 
         assert_eq!(response.status(), hyper::StatusCode::BAD_REQUEST);
+
+        let body = response.read_body().unwrap();
+        assert!(body.is_empty());
+    }
+
+    #[test]
+    fn cannot_omit_ttl() {
+        let test_server = TestServer::new(route(options())).unwrap();
+        let response = test_server
+            .client()
+            .post(host_path!(), "foo", mime::TEXT_PLAIN)
+            .perform()
+            .unwrap();
+
+        assert_eq!(response.status(), hyper::StatusCode::BAD_REQUEST);
+
+        let body = response.read_body().unwrap();
+        assert!(body.is_empty());
+    }
+
+    #[test]
+    fn cannot_use_malformed_ttl() {
+        let test_server = TestServer::new(route(options())).unwrap();
+        let response = test_server
+            .client()
+            .post(concat!(host_path!(), "?ttl=1"), "", mime::TEXT_PLAIN)
+            .perform()
+            .unwrap();
+
+        assert_eq!(response.status(), hyper::StatusCode::BAD_REQUEST);
+
+        let body = response.read_body().unwrap();
+        assert!(body.is_empty());
+    }
+
+    #[test]
+    fn secrets_expire() {
+        let test_server = TestServer::new(route(options())).unwrap();
+        let response = test_server
+            .client()
+            .post(concat!(host_path!(), "?ttl=0m"), "foo", mime::TEXT_PLAIN)
+            .perform()
+            .unwrap();
+
+        assert_eq!(response.status(), hyper::StatusCode::CREATED);
+        let key = response.read_body().unwrap();
+
+        let response = test_server
+            .client()
+            .get(format!(
+                concat!(host_path!(), "{}"),
+                key.into_iter().map(|c| c as char).collect::<String>()
+            ))
+            .perform()
+            .unwrap();
+
+        assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
 
         let body = response.read_body().unwrap();
         assert!(body.is_empty());
