@@ -62,3 +62,81 @@ struct Secret {
     expiry: std::time::SystemTime,
     data: Vec<u8>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::Store as Trait;
+    use super::Store;
+
+    #[test]
+    fn put() {
+        let mut store = Store::new();
+        let data: Vec<u8> = b"test"[..].into();
+        let id = store
+            .put(
+                std::time::SystemTime::now()
+                    .checked_add(std::time::Duration::from_secs(1))
+                    .unwrap(),
+                data,
+            )
+            .unwrap();
+
+        assert_eq!(id.len(), 43);
+        assert_eq!(store.secrets.len(), 1);
+    }
+
+    #[test]
+    fn get() {
+        let mut store = Store::new();
+        let data: Vec<u8> = b"test"[..].into();
+        let id = store
+            .put(
+                std::time::SystemTime::now()
+                    .checked_add(std::time::Duration::from_secs(1))
+                    .unwrap(),
+                data,
+            )
+            .unwrap();
+        let result = store.get(&id).unwrap();
+
+        assert!(store.secrets.is_empty());
+        assert_eq!(&result[..], b"test");
+    }
+
+    #[test]
+    fn refresh() {
+        let mut store = Store::new();
+        let data: Vec<u8> = b"test"[..].into();
+        store
+            .put(
+                std::time::SystemTime::now()
+                    .checked_add(std::time::Duration::from_millis(50))
+                    .unwrap(),
+                data,
+            )
+            .unwrap();
+
+        assert_eq!(store.secrets.len(), 1);
+        std::thread::sleep(std::time::Duration::from_millis(200));
+
+        store.refresh();
+        assert!(store.secrets.is_empty());
+    }
+
+    #[test]
+    fn size() {
+        let mut store = Store::new();
+        let data: Vec<u8> = b"test"[..].into();
+        let len = data.len() as u64;
+        store
+            .put(
+                std::time::SystemTime::now()
+                    .checked_add(std::time::Duration::from_secs(1))
+                    .unwrap(),
+                data,
+            )
+            .unwrap();
+
+        assert_eq!(store.size(), len);
+    }
+}

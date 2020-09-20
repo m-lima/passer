@@ -17,30 +17,6 @@ macro_rules! path {
     };
 }
 
-// macro_rules! add_routes {
-//     ($route:ident, $options: ident) => {
-//         use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
-//         #[cfg(feature = "host-frontend")]
-//         {
-//             log::info!("Serving front-end at {}", $options.web_path.0.display());
-//             $route
-//                 .get("/*")
-//                 .with_path_extractor::<gotham::handler::assets::FilePathExtractor>()
-//                 .to_new_handler($crate::handler::Index::new(
-//                     $options.web_path.0,
-//                     $options.web_path.1.clone(),
-//                 ));
-//             $route.get("/").to_file($options.web_path.1);
-//         }
-
-//         $route.post(path!()).to($crate::handler::post);
-//         $route
-//             .get(path!(":id"))
-//             .with_path_extractor::<IdExtractor>()
-//             .to($crate::handler::get);
-//     };
-// }
-
 pub fn route(options: Options) -> gotham::router::Router {
     use gotham::pipeline;
     use gotham::router::builder;
