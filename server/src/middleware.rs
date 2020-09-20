@@ -14,7 +14,7 @@ impl std::fmt::Display for Error {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::FailedToAcquireStore => write!(fmt, "failed to acquire store"),
-            Self::Store(e) => write!(fmt, "backend store error: {}", e),
+            Self::Store(e) => write!(fmt, "{}", e),
         }
     }
 }

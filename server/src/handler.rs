@@ -49,13 +49,13 @@ impl Error {
 
     fn into_response(self, state: &gotham::state::State) -> hyper::Response<hyper::Body> {
         let status = self.status_code();
-        log::warn!("{} [{}]", &self, &status);
+        log::warn!("{}", &self);
         gotham::helpers::http::response::create_empty_response(state, status)
     }
 
     fn into_handler_error(self) -> gotham::handler::HandlerError {
         let status = self.status_code();
-        log::warn!("{} [{}]", &self, &status);
+        log::warn!("{}", &self);
         gotham::handler::HandlerError::from(self).with_status(status)
     }
 }
