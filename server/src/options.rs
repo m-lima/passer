@@ -20,6 +20,8 @@ pub struct Options {
     pub cors: Option<hyper::header::HeaderValue>,
 
     /// Sets storage location
+    ///
+    /// Will store secrets in memory if no path is provided
     #[clap(short, long, parse(try_from_str = to_dir_path))]
     pub store_path: Option<std::path::PathBuf>,
 
