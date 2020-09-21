@@ -3,17 +3,41 @@ use super::middleware;
 use super::options::Options;
 use super::store;
 
-#[cfg(not(feature = "host-frontend"))]
 macro_rules! path {
-    ($($path:literal)?) => {
-        concat!("/", $($path)?)
+    ($web_path: ident $(, $path:literal)?) => {
+        if $web_path.is_some() {
+            concat!("/api/", $($path)?)
+        } else {
+            concat!("/", $($path)?)
+        };
     };
 }
 
-#[cfg(feature = "host-frontend")]
-macro_rules! path {
-    ($($path:literal)?) => {
-        concat!("/api/", $($path)?)
+macro_rules! add_routes {
+    ($route:ident, $web_path: ident, $cors:ident) => {
+        $route.options(path!($web_path)).to(|state| (state, ""));
+        add_routes!($route, $web_path);
+    };
+    ($route:ident, $web_path: ident) => {
+        use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
+
+        $route
+            .post(path!($web_path))
+            .with_query_string_extractor::<handler::TtlExtractor>()
+            .to(handler::post);
+        $route
+            .get(path!($web_path, ":id"))
+            .with_path_extractor::<handler::IdExtractor>()
+            .to(handler::get);
+
+        if let Some(web_path) = $web_path {
+            log::info!("Serving front-end at {}", web_path.0.display());
+            $route
+                .get("/*")
+                .with_path_extractor::<gotham::handler::assets::FilePathExtractor>()
+                .to_new_handler(handler::Index::new(web_path.0, web_path.1.clone()));
+            $route.get("/").to_file(web_path.1);
+        }
     };
 }
 
@@ -21,41 +45,37 @@ pub fn route(options: Options) -> gotham::router::Router {
     use gotham::pipeline;
     use gotham::router::builder;
 
-    #[cfg(feature = "host-frontend")]
     let web_path = options.web_path;
 
-    let pipeline = pipeline::new_pipeline()
-        .add(middleware::Log)
-        .add(options.store_path.map_or_else(
-            || middleware::Store::new(store::in_memory()),
-            |path| middleware::Store::new(store::in_file(path)),
-        ))
-        .build();
+    let store = options.store_path.map_or_else(
+        || middleware::Store::new(store::in_memory()),
+        |path| middleware::Store::new(store::in_file(path)),
+    );
 
-    let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
+    if let Some(cors) = options.cors {
+        let pipeline = pipeline::new_pipeline()
+            .add(middleware::Log)
+            .add(store)
+            .add(middleware::Cors::new(cors))
+            .build();
 
-    builder::build_router(chain, pipelines, |route| {
-        use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
+        let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
 
-        #[cfg(feature = "host-frontend")]
-        {
-            log::info!("Serving front-end at {}", web_path.0.display());
-            route
-                .get("/*")
-                .with_path_extractor::<gotham::handler::assets::FilePathExtractor>()
-                .to_new_handler(handler::Index::new(web_path.0, web_path.1.clone()));
-            route.get("/").to_file(web_path.1);
-        }
+        builder::build_router(chain, pipelines, |route| {
+            add_routes!(route, web_path, cors);
+        })
+    } else {
+        let pipeline = pipeline::new_pipeline()
+            .add(middleware::Log)
+            .add(store)
+            .build();
 
-        route
-            .post(path!())
-            .with_query_string_extractor::<handler::TtlExtractor>()
-            .to(handler::post);
-        route
-            .get(path!(":id"))
-            .with_path_extractor::<handler::IdExtractor>()
-            .to(handler::get);
-    })
+        let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
+
+        builder::build_router(chain, pipelines, |route| {
+            add_routes!(route, web_path);
+        })
+    }
 }
 
 #[cfg(test)]
@@ -68,7 +88,7 @@ mod tests {
 
     macro_rules! host_path {
         ($($path:literal)?) => {
-            concat!("http://localhost", path!($($path)?))
+            concat!("http://localhost/", $($path)?)
         };
     }
 
@@ -76,50 +96,36 @@ mod tests {
         options::Options {
             port: 0,
             threads: 0,
+            cors: None,
             store_path: None,
-            #[cfg(feature = "host-frontend")]
-            web_path: ("res/test".into(), "res/test/index".into()),
+            web_path: None,
+        }
+    }
+
+    fn options_with_path() -> options::Options {
+        options::Options {
+            port: 0,
+            threads: 0,
+            cors: None,
+            store_path: None,
+            web_path: Some(("res/test".into(), "res/test/index".into())),
         }
     }
 
     #[test]
     fn path() {
-        {
-            let path = path!();
-
-            #[cfg(not(feature = "host-frontend"))]
-            assert_eq!(path, "/");
-            #[cfg(feature = "host-frontend")]
-            assert_eq!(path, "/api/");
-        }
-        {
-            let path = path!("foo/bar");
-
-            #[cfg(not(feature = "host-frontend"))]
-            assert_eq!(path, "/foo/bar");
-            #[cfg(feature = "host-frontend")]
-            assert_eq!(path, "/api/foo/bar");
-        }
+        let some = Some(());
+        let none: Option<()> = None;
+        assert_eq!(path!(none), "/");
+        assert_eq!(path!(none, "foo/bar"), "/foo/bar");
+        assert_eq!(path!(some), "/api/");
+        assert_eq!(path!(some, "foo/bar"), "/api/foo/bar");
     }
 
     #[test]
     fn host_path() {
-        {
-            let path = host_path!();
-
-            #[cfg(not(feature = "host-frontend"))]
-            assert_eq!(path, "http://localhost/");
-            #[cfg(feature = "host-frontend")]
-            assert_eq!(path, "http://localhost/api/");
-        }
-        {
-            let path = host_path!("foo/bar");
-
-            #[cfg(not(feature = "host-frontend"))]
-            assert_eq!(path, "http://localhost/foo/bar");
-            #[cfg(feature = "host-frontend")]
-            assert_eq!(path, "http://localhost/api/foo/bar");
-        }
+        assert_eq!(host_path!(), "http://localhost/");
+        assert_eq!(host_path!("foo/bar"), "http://localhost/foo/bar");
     }
 
     #[test]
@@ -286,9 +292,64 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "host-frontend")]
-    fn index() {
+    fn no_cors() {
         let test_server = TestServer::new(route(options())).unwrap();
+        let response = test_server
+            .client()
+            .get(host_path!("foo"))
+            .perform()
+            .unwrap();
+
+        let cors = response
+            .headers()
+            .get(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN);
+
+        assert!(cors.is_none());
+    }
+
+    #[test]
+    fn with_cors() {
+        let mut options = options();
+        options.cors = Some(hyper::header::HeaderValue::from_static("bar"));
+
+        let test_server = TestServer::new(route(options)).unwrap();
+        let response = test_server
+            .client()
+            .get(host_path!("0___________________foo___________________0"))
+            .perform()
+            .unwrap();
+
+        let cors = response
+            .headers()
+            .get(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .unwrap();
+
+        assert_eq!(cors, "bar");
+    }
+
+    #[test]
+    fn preflight() {
+        let mut options = options();
+        options.cors = Some(hyper::header::HeaderValue::from_static("bar"));
+
+        let test_server = TestServer::new(route(options)).unwrap();
+        let response = test_server
+            .client()
+            .options(host_path!())
+            .perform()
+            .unwrap();
+
+        let cors = response
+            .headers()
+            .get(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .unwrap();
+
+        assert_eq!(cors, "bar");
+    }
+
+    #[test]
+    fn index() {
+        let test_server = TestServer::new(route(options_with_path())).unwrap();
         let response = test_server
             .client()
             .get("http://localhost")
@@ -299,11 +360,7 @@ mod tests {
         let body = response.read_body().unwrap();
         assert_eq!(&body[..], b"main_page\n");
 
-        let response = test_server
-            .client()
-            .get("http://localhost/")
-            .perform()
-            .unwrap();
+        let response = test_server.client().get(host_path!()).perform().unwrap();
 
         assert_eq!(response.status(), hyper::StatusCode::OK);
         let body = response.read_body().unwrap();
@@ -311,12 +368,11 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "host-frontend")]
     fn assets() {
-        let test_server = TestServer::new(route(options())).unwrap();
+        let test_server = TestServer::new(route(options_with_path())).unwrap();
         let response = test_server
             .client()
-            .get("http://localhost/foo")
+            .get(host_path!("foo"))
             .perform()
             .unwrap();
 
@@ -326,12 +382,11 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "host-frontend")]
     fn fallback_to_index() {
-        let test_server = TestServer::new(route(options())).unwrap();
+        let test_server = TestServer::new(route(options_with_path())).unwrap();
         let response = test_server
             .client()
-            .get("http://localhost/bar")
+            .get(host_path!("bar"))
             .perform()
             .unwrap();
 
@@ -341,12 +396,13 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "host-frontend")]
     fn api_still_gets_served() {
-        let test_server = TestServer::new(route(options())).unwrap();
+        let test_server = TestServer::new(route(options_with_path())).unwrap();
         let response = test_server
             .client()
-            .get(host_path!("0___________________foo___________________0"))
+            .get(host_path!(
+                "api/0___________________foo___________________0"
+            ))
             .perform()
             .unwrap();
 

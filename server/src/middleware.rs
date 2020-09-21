@@ -26,6 +26,38 @@ impl std::convert::From<store::Error> for Error {
 }
 
 #[derive(Clone, gotham_derive::NewMiddleware)]
+pub struct Cors(hyper::header::HeaderValue);
+
+impl Cors {
+    pub fn new(cors: hyper::header::HeaderValue) -> Self {
+        Self(cors)
+    }
+}
+
+impl gotham::middleware::Middleware for Cors {
+    fn call<C>(
+        self,
+        state: gotham::state::State,
+        chain: C,
+    ) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
+    where
+        C: FnOnce(gotham::state::State) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
+            + Send
+            + 'static,
+    {
+        Box::pin(async {
+            // Allowed because this is third-party code being flagged
+            #[allow(clippy::used_underscore_binding)]
+            chain(state).await.map(|(state, mut response)| {
+                let header = response.headers_mut();
+                header.insert(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN, self.0);
+                (state, response)
+            })
+        })
+    }
+}
+
+#[derive(Clone, gotham_derive::NewMiddleware)]
 pub struct Log;
 
 impl gotham::middleware::Middleware for Log {

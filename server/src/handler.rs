@@ -139,14 +139,12 @@ fn convert_str_to_duration(value: &str) -> Result<std::time::Duration, String> {
     Ok(std::time::Duration::from_secs(unit * amount))
 }
 
-#[cfg(feature = "host-frontend")]
 #[derive(Clone)]
 pub struct Index(
     gotham::handler::assets::DirHandler,
     gotham::handler::assets::FileHandler,
 );
 
-#[cfg(feature = "host-frontend")]
 impl Index {
     pub fn new(root: std::path::PathBuf, index: std::path::PathBuf) -> Self {
         use gotham::handler::assets;
@@ -157,7 +155,6 @@ impl Index {
     }
 }
 
-#[cfg(feature = "host-frontend")]
 impl gotham::handler::NewHandler for Index {
     type Instance = Self;
 
@@ -166,7 +163,6 @@ impl gotham::handler::NewHandler for Index {
     }
 }
 
-#[cfg(feature = "host-frontend")]
 impl gotham::handler::Handler for Index {
     fn handle(
         self,
