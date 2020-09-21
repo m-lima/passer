@@ -1,6 +1,7 @@
 import React, { Dispatch, SetStateAction, useState, useRef } from 'react'
 import {
   Button,
+  FormGroup,
   Input,
   ListGroup,
   ListGroupItem,
@@ -57,6 +58,26 @@ interface IProps {
   setAlerts: Dispatch<SetStateAction<Alert[]>>
 }
 
+const ttlToText = (ttl: number) => {
+  switch (ttl) {
+    case 1: return '1 hour'
+    case 2: return '12 hours'
+    case 3: return '1 day'
+    case 4: return '3 days'
+    case 5: return '1 week'
+  }
+}
+
+const ttlToQuery = (ttl: number) => {
+  switch (ttl) {
+    case 1: return '1h'
+    case 2: return '12h'
+    case 3: return '1d'
+    case 4: return '3d'
+    case 5: return '7d'
+  }
+}
+
 const Encrypt = (props: IProps) => {
 
   const inputRef = useRef<HTMLInputElement>(null)
@@ -69,6 +90,7 @@ const Encrypt = (props: IProps) => {
   const [totalSize, setTotalSize] = useState(0)
   const [modal, setModal] = useState(false)
   const [secretText, setSecretText] = useState('')
+  const [ttl, setTTL] = useState(3)
   const [uploadResult, setUploadResult] = useState<UploadResult>()
 
   const sizePercentage = (totalSize * 100 / pack.MAX_SIZE).toFixed(1)
@@ -95,7 +117,7 @@ const Encrypt = (props: IProps) => {
       .then(results => {
         results.packs = [...packs, ...results.packs]
 
-        const totalSize = results.packs.map(p => p.size).reduce((a, b) => a + b, 0)
+        const totalSize = results.packs.map(p => p.size).reduce((a, c) => a + c, 0)
         if (totalSize > pack.MAX_SIZE) {
           results.alerts.push(Alert.TOO_MUCH_DATA)
         }
@@ -126,11 +148,15 @@ const Encrypt = (props: IProps) => {
     onDrop: encryptFiles,
   })
 
-  const remove = (index: number) => setPacks(packs.filter((_, i) => i !== index))
+  const remove = (index: number) => {
+    const filtered = packs.filter((_, i) => i !== index)
+    setPacks(filtered)
+    setTotalSize(filtered.map(p => p.size).reduce((a, c) => a + c, 0))
+  }
 
   const send = () => {
     setLoading('Uploading')
-    fetch(config.API, {
+    fetch(`${config.API}?ttl=${ttlToQuery(ttl)}`, {
       method: 'POST',
       redirect: 'follow',
       body: encode(packs.map(p => p.data.payload())),
@@ -187,16 +213,32 @@ const Encrypt = (props: IProps) => {
 
   const packList = () =>
     <>
-      <ListGroup flush>
-        {packs.map(packItem)}
-      </ListGroup>
-      <Progress
-        color='info'
-        value={sizePercentage}
-        className='enc-progress'
-      >
-        <span className='enc-progresss-value'>{sizePercentage}{' %'}</span>
-      </Progress>
+      <div className='enc-packs'>
+        <ListGroup flush>
+          {packs.map(packItem)}
+        </ListGroup>
+      </div>
+      {Number.parseInt(sizePercentage) >= 10
+        ? <Progress
+            color='info'
+            value={sizePercentage}
+            className='enc-progress'
+          >
+            <span className='enc-progresss-value'>{sizePercentage}{' %'}</span>
+          </Progress>
+        : <></>
+      }
+      <FormGroup>
+        <b>Expiry: {ttlToText(ttl)}</b>
+        <Input
+          type='range'
+          id='bla'
+          min={1}
+          max={5}
+          onChange={e => setTTL(Number.parseInt(e.target.value))}
+          value={ttl}
+        />
+      </FormGroup>
       <Button color='success' size='lg' block onClick={send} disabled={totalSize > pack.MAX_SIZE}>Upload</Button>
       <Button color='secondary' size='lg' block onClick={reset}>Clear</Button>
     </>

@@ -1,9 +1,29 @@
+use super::store;
+
 use gotham::hyper;
 
-use super::Error;
+#[derive(Debug)]
+pub enum Error {
+    FailedToAcquireStore,
+    Store(store::Error),
+}
 
-static MAX_LENGTH: usize = 110 * 1024 * 1024;
-static MAX_STORE_SIZE: usize = 10;
+impl std::error::Error for Error {}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::FailedToAcquireStore => write!(fmt, "failed to acquire store"),
+            Self::Store(e) => write!(fmt, "{}", e),
+        }
+    }
+}
+
+impl std::convert::From<store::Error> for Error {
+    fn from(e: store::Error) -> Self {
+        Self::Store(e)
+    }
+}
 
 #[derive(Clone, gotham_derive::NewMiddleware)]
 pub struct Cors(hyper::header::HeaderValue);
@@ -65,10 +85,10 @@ impl gotham::middleware::Middleware for Log {
                             || {
                                 gotham::state::client_addr(&state).map_or_else(
                                     || String::from("??"),
-                                    |addr| format!("{}[r]", addr.ip().to_string()),
+                                    |addr| addr.ip().to_string(),
                                 )
                             },
-                            |fwd| format!("{}[p]", fwd),
+                            |fwd| format!("{} [p]", fwd),
                         );
 
                     // Request info
@@ -92,64 +112,53 @@ impl gotham::middleware::Middleware for Log {
     }
 }
 
-#[derive(Clone, Default, gotham_derive::StateData)]
+#[derive(Clone, gotham_derive::StateData)]
 pub struct Store {
-    secrets: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>>,
+    store: std::sync::Arc<std::sync::Mutex<dyn 'static + store::Store + Send>>,
 }
 
 impl Store {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    fn new_key() -> String {
-        use rand::Rng;
-        base64::encode_config(
-            rand::thread_rng().gen::<[u8; 32]>(),
-            base64::URL_SAFE_NO_PAD,
-        )
-    }
-
-    pub fn put(&mut self, data: Vec<u8>) -> Result<String, gotham::handler::HandlerError> {
-        use gotham::handler::MapHandlerError;
-
-        if data.is_empty() {
-            return Err(Error::NothingToInsert).map_err_with_status(hyper::StatusCode::BAD_REQUEST);
-        }
-
-        if data.len() > MAX_LENGTH {
-            return Err(Error::TooLarge).map_err_with_status(hyper::StatusCode::PAYLOAD_TOO_LARGE);
-        }
-
-        if let Ok(mut map) = self.secrets.lock() {
-            if map.len() > MAX_STORE_SIZE {
-                Err(Error::StoreFull).map_err_with_status(hyper::StatusCode::CONFLICT)
-            } else {
-                let key = loop {
-                    let key = Self::new_key();
-                    if !map.contains_key(&key) {
-                        break key;
-                    }
-                };
-
-                map.insert(key.clone(), data);
-                Ok(key)
-            }
-        } else {
-            Err(Error::FailedToAcquireStore)
-                .map_err_with_status(hyper::StatusCode::INTERNAL_SERVER_ERROR)
+    pub fn new(store: impl 'static + store::Store + Send) -> Self {
+        Self {
+            store: std::sync::Arc::new(std::sync::Mutex::new(store)),
         }
     }
 
-    pub fn get(&mut self, key: &str) -> Result<Vec<u8>, gotham::handler::HandlerError> {
-        self.secrets
-            .lock()
-            .map_err(|_| Error::FailedToAcquireStore.into())
-            .and_then(|mut map| {
-                map.remove(key).ok_or_else(|| {
-                    let err: gotham::handler::HandlerError = Error::SecretNotFound.into();
-                    err.with_status(hyper::StatusCode::NOT_FOUND)
-                })
-            })
+    pub fn put(
+        &mut self,
+        data: Vec<u8>,
+        expiry: std::time::SystemTime,
+    ) -> Result<store::Id, Error> {
+        let mut store = self.store.lock().map_err(|_| Error::FailedToAcquireStore)?;
+        store.refresh();
+        store.put(expiry, data).map_err(Error::Store)
+    }
+
+    pub fn get(&mut self, key: &store::Id) -> Result<Vec<u8>, Error> {
+        let mut store = self.store.lock().map_err(|_| Error::FailedToAcquireStore)?;
+        store.refresh();
+        store.get(key).map_err(Error::Store)
+    }
+}
+
+impl gotham::middleware::Middleware for Store {
+    fn call<Chain>(
+        self,
+        mut state: gotham::state::State,
+        chain: Chain,
+    ) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>
+    where
+        Chain: FnOnce(gotham::state::State) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>>,
+    {
+        state.put(self);
+        chain(state)
+    }
+}
+
+impl gotham::middleware::NewMiddleware for Store {
+    type Instance = Self;
+
+    fn new_middleware(&self) -> gotham::anyhow::Result<Self::Instance> {
+        Ok(self.clone())
     }
 }

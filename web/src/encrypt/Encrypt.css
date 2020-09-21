@@ -46,6 +46,11 @@
   width: 100%;
 }
 
+.enc-packs {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
 .enc-progress {
   background-color: #cccccc;
   margin-bottom: 1rem;
