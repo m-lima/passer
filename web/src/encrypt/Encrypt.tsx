@@ -130,7 +130,7 @@ const Encrypt = (props: IProps) => {
 
   const send = () => {
     setLoading('Uploading')
-    fetch(config.API, {
+    fetch(`${config.API}?ttl=7d`, {
       method: 'POST',
       redirect: 'follow',
       body: encode(packs.map(p => p.data.payload())),
