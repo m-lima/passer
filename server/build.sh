@@ -4,5 +4,7 @@ docker rm passer
 docker create \
   --name passer \
   --net fly \
-  passer
+  --volume passer-data:/data \
+  passer \
+  -s /data
 
