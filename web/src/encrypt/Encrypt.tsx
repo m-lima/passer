@@ -1,6 +1,7 @@
 import React, { Dispatch, SetStateAction, useState, useRef } from 'react'
 import {
   Button,
+  CustomInput,
   FormGroup,
   Input,
   ListGroup,
@@ -230,9 +231,8 @@ const Encrypt = (props: IProps) => {
       }
       <FormGroup>
         <b>Expiry: {ttlToText(ttl)}</b>
-        <Input
+        <CustomInput
           type='range'
-          id='bla'
           min={1}
           max={5}
           onChange={e => setTTL(Number.parseInt(e.target.value))}
