@@ -232,6 +232,7 @@ const Encrypt = (props: IProps) => {
       <FormGroup>
         <b>Expiry: {ttlToText(ttl)}</b>
         <CustomInput
+          id='expiry-slider'
           type='range'
           min={1}
           max={5}
