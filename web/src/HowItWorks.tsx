@@ -30,7 +30,7 @@ const encryptionItems = [
   {
     src: enc2,
     header: 'Content is immediately encrypted',
-    caption: 'A 352-bit key is generated and used for encryption as soon as content is loaded',
+    caption: 'A 256-bit key is generated and used for encryption as soon as content is loaded',
   },
   {
     src: enc3,
@@ -39,7 +39,7 @@ const encryptionItems = [
   },
   {
     src: enc4,
-    header: 'Server assigns a unique 352-bit identifier',
+    header: 'Server assigns a unique 256-bit identifier',
     caption: 'The server only knows of the identifier and which encrypted bytes it refers to'
   },
   {
@@ -53,7 +53,7 @@ const decryptionItems = [
   {
     src: dec1,
     header: 'An identifier is requested',
-    caption: 'The 352-bit identifier only refers to a pack of encrypted bytes in the server',
+    caption: 'The 256-bit identifier only refers to a pack of encrypted bytes in the server',
   },
   {
     src: dec2,
@@ -67,7 +67,7 @@ const decryptionItems = [
   {
     src: dec4,
     header: 'The decryption key is provided',
-    caption: 'The 352-bit key is used to decrypt the data locally'
+    caption: 'The 256-bit key is used to decrypt the data locally'
   },
   {
     src: dec5,
