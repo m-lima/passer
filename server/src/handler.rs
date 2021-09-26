@@ -3,26 +3,17 @@ use gotham::hyper;
 use super::middleware;
 use super::store::Id;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 enum Error {
+    #[error("nothing to insert")]
     NothingToInsert,
+    #[error("{0}")]
     Middleware(middleware::Error),
+    #[error("{0}")]
     Unknown(String),
 }
 
-impl std::error::Error for Error {}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NothingToInsert => write!(fmt, "nothing to insert"),
-            Self::Middleware(e) => write!(fmt, "{}", e),
-            Self::Unknown(msg) => write!(fmt, "unknown error: {}", msg),
-        }
-    }
-}
-
-impl std::convert::From<middleware::Error> for Error {
+impl From<middleware::Error> for Error {
     fn from(e: middleware::Error) -> Self {
         Self::Middleware(e)
     }

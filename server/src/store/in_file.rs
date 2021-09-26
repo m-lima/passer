@@ -1,36 +1,27 @@
 use super::Error;
 use super::Id;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum InternalError {
+    #[error("not a readable file")]
     NotReadableFile,
+    #[error("file name does not match expected pattern")]
     BadName,
+    #[error("bad header")]
     BadHeader,
+    #[error("invalid expiry")]
     InvalidExpiry,
+    #[error("io error: {0}")]
     IO(std::io::Error),
 }
 
-impl std::error::Error for InternalError {}
-
-impl std::fmt::Display for InternalError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NotReadableFile => write!(fmt, "not a readable file"),
-            Self::BadName => write!(fmt, "file name does not match expected pattern"),
-            Self::BadHeader => write!(fmt, "bad header"),
-            Self::InvalidExpiry => write!(fmt, "invalid expiry"),
-            Self::IO(e) => write!(fmt, "io error: {}", e),
-        }
-    }
-}
-
-impl std::convert::From<std::io::Error> for InternalError {
+impl From<std::io::Error> for InternalError {
     fn from(e: std::io::Error) -> Self {
         Self::IO(e)
     }
 }
 
-impl std::convert::From<std::io::Error> for Error {
+impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
         Self::Generic(e.to_string())
     }

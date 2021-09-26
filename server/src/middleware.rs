@@ -2,24 +2,15 @@ use super::store;
 
 use gotham::hyper;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("failed to acquire store")]
     FailedToAcquireStore,
+    #[error("{0}")]
     Store(store::Error),
 }
 
-impl std::error::Error for Error {}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::FailedToAcquireStore => write!(fmt, "failed to acquire store"),
-            Self::Store(e) => write!(fmt, "{}", e),
-        }
-    }
-}
-
-impl std::convert::From<store::Error> for Error {
+impl From<store::Error> for Error {
     fn from(e: store::Error) -> Self {
         Self::Store(e)
     }

@@ -3,27 +3,18 @@ mod in_memory;
 
 const MAX_SECRET_SIZE: u64 = 110 * 1024 * 1024;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("payload too large")]
     TooLarge,
+    #[error("store full")]
     StoreFull,
+    #[error("secret not found")]
     SecretNotFound,
+    #[error("invalid id: {0}")]
     InvalidId(base64::DecodeError),
+    #[error("{0}")]
     Generic(String),
-}
-
-impl std::error::Error for Error {}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::TooLarge => write!(fmt, "payload too large"),
-            Self::StoreFull => write!(fmt, "store is full"),
-            Self::SecretNotFound => write!(fmt, "secret not found"),
-            Self::InvalidId(e) => write!(fmt, "invalid id: {}", e),
-            Self::Generic(msg) => write!(fmt, "{}", msg),
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
