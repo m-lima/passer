@@ -1,7 +1,7 @@
 mod in_file;
 mod in_memory;
 
-const MAX_SECRET_SIZE: u64 = 110 * 1024 * 1024;
+pub const MAX_SECRET_SIZE: u64 = 110 * 1024 * 1024;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

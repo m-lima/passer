@@ -6,10 +6,16 @@ pub enum Error {
     NothingToInsert,
     #[error("failed to acquire store")]
     FailedToAcquireStore,
+    #[error("content length missing")]
+    ContentLengthMissing,
+    #[error("payload too large")]
+    PayloadTooLarge,
+    #[error("read timeout")]
+    ReadTimeout,
+    #[error("{0}")]
+    Hyper(gotham::hyper::Error),
     #[error("{0}")]
     Store(store::Error),
-    #[error("{0}")]
-    Unknown(String),
 }
 
 impl Error {
@@ -18,11 +24,17 @@ impl Error {
         use gotham::hyper::StatusCode;
 
         match self {
-            Error::NothingToInsert => StatusCode::BAD_REQUEST,
-            Error::Store(StoreError::TooLarge) => StatusCode::PAYLOAD_TOO_LARGE,
-            Error::Store(StoreError::StoreFull) => StatusCode::CONFLICT,
             Error::Store(StoreError::SecretNotFound) => StatusCode::NOT_FOUND,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+            Error::NothingToInsert
+            | Error::ContentLengthMissing
+            | Error::PayloadTooLarge
+            | Error::Store(StoreError::InvalidId(_)) => StatusCode::BAD_REQUEST,
+            Error::ReadTimeout => StatusCode::REQUEST_TIMEOUT,
+            Error::Store(StoreError::StoreFull) => StatusCode::CONFLICT,
+            Error::Store(StoreError::TooLarge) => StatusCode::PAYLOAD_TOO_LARGE,
+            Error::Hyper(_)
+            | Error::FailedToAcquireStore
+            | Error::Store(StoreError::Generic(_)) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 

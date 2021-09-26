@@ -40,13 +40,16 @@ impl Log {
 
         match error {
             Error::NothingToInsert
+            | Error::ContentLengthMissing
             | Error::Store(
                 StoreError::TooLarge | StoreError::SecretNotFound | StoreError::InvalidId(_),
             ) => log::Level::Info,
-            Error::Store(StoreError::Generic(_)) => log::Level::Warn,
-            Error::Store(StoreError::StoreFull)
-            | Error::Unknown(_)
-            | Error::FailedToAcquireStore => log::Level::Error,
+            Error::Store(StoreError::Generic(_)) | Error::PayloadTooLarge | Error::ReadTimeout => {
+                log::Level::Warn
+            }
+            Error::Store(StoreError::StoreFull) | Error::Hyper(_) | Error::FailedToAcquireStore => {
+                log::Level::Error
+            }
         }
     }
 

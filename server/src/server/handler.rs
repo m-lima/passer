@@ -1,21 +1,21 @@
 use super::error::Error;
 use super::middleware;
-use super::store::Id;
+use super::store;
 
 #[derive(serde::Deserialize, gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
 pub struct IdExtractor {
     #[serde(deserialize_with = "id_deserializer")]
-    id: Id,
+    id: store::Id,
 }
 
-fn id_deserializer<'de, D>(deserializer: D) -> Result<Id, D::Error>
+fn id_deserializer<'de, D>(deserializer: D) -> Result<store::Id, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
     struct IdVisitor;
 
     impl<'de> serde::de::Visitor<'de> for IdVisitor {
-        type Value = Id;
+        type Value = store::Id;
 
         fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             fmt.write_str("a 32-bit unsigned integer base64 encoded")
@@ -25,7 +25,7 @@ where
         where
             E: serde::de::Error,
         {
-            Id::decode(value).map_err(|e| serde::de::Error::custom(e.to_string()))
+            store::Id::decode(value).map_err(|e| serde::de::Error::custom(e.to_string()))
         }
     }
 
@@ -138,39 +138,56 @@ pub fn get(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handler
 }
 
 pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>> {
-    Box::pin(async {
+    // TODO: Todo one try-block has landed
+    async fn internal(
+        state: &mut gotham::state::State,
+    ) -> Result<gotham::hyper::Response<gotham::hyper::Body>, Error> {
         use gotham::handler::IntoResponse;
-        use gotham::hyper::{body, Body};
         use gotham::state::FromState;
+        use std::convert::TryFrom;
 
-        let ttl = TtlExtractor::take_from(&mut state).ttl;
+        let request_length = gotham::hyper::HeaderMap::borrow_from(state)
+            .get(gotham::hyper::header::CONTENT_LENGTH)
+            .and_then(|len| len.to_str().ok())
+            .and_then(|len| len.parse::<usize>().ok())
+            .ok_or(Error::ContentLengthMissing)?;
+
+        if request_length == 0 {
+            return Err(Error::NothingToInsert);
+        } else if u64::try_from(request_length).map_err(|_| Error::PayloadTooLarge)?
+            > store::MAX_SECRET_SIZE
+        {
+            return Err(Error::PayloadTooLarge);
+        }
+
+        // Hyper reads up to Content-Length. No need for chunk-wise verification
+        // TODO: Is this needed behind nginx?
+        let body = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            gotham::hyper::body::to_bytes(gotham::hyper::Body::borrow_mut_from(state)),
+        )
+        .await
+        .map_err(|_| Error::ReadTimeout)?
+        .map_err(Error::Hyper)?;
+
+        let ttl = TtlExtractor::take_from(state).ttl;
         let expiry = std::time::SystemTime::now() + ttl;
 
-        match body::to_bytes(Body::take_from(&mut state))
-            .await
-            .map_err(|e| Error::Unknown(e.to_string()))
-            .and_then(|bytes| {
-                if bytes.is_empty() {
-                    Err(Error::NothingToInsert)
-                } else {
-                    Ok(bytes.to_vec())
-                }
+        let store = middleware::Store::borrow_mut_from(state);
+        store
+            .put(body.to_vec(), expiry)
+            .map(|key| {
+                let mut response = key.encode().into_response(&state);
+                *response.status_mut() = gotham::hyper::StatusCode::CREATED;
+                response
             })
-            .and_then(|data| {
-                let store = middleware::Store::borrow_mut_from(&mut state);
-                store
-                    .put(data, expiry)
-                    .map(|key| {
-                        let mut response = key.encode().into_response(&state);
-                        *response.status_mut() = gotham::hyper::StatusCode::CREATED;
-                        response
-                    })
-                    .map_err(Error::from)
-            })
-            .map_err(Error::into_handler_error)
-        {
+            .map_err(Error::from)
+    }
+
+    Box::pin(async {
+        match internal(&mut state).await {
             Ok(r) => Ok((state, r)),
-            Err(e) => Err((state, e)),
+            Err(e) => Err((state, e.into_handler_error())),
         }
     })
 }
