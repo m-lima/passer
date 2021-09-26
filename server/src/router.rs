@@ -3,45 +3,6 @@ use super::middleware;
 use super::options::Options;
 use super::store;
 
-macro_rules! path {
-    ($web_path: ident $(, $path:literal)?) => {
-        if $web_path.is_some() {
-            concat!("/api/", $($path)?)
-        } else {
-            concat!("/", $($path)?)
-        };
-    };
-}
-
-macro_rules! add_routes {
-    ($route:ident, $web_path: ident, cors) => {{
-        use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
-        $route.options(path!($web_path)).to(|state| (state, ""));
-        add_routes!($route, $web_path);
-    }};
-    ($route:ident, $web_path: ident) => {{
-        use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
-
-        $route
-            .post(path!($web_path))
-            .with_query_string_extractor::<handler::TtlExtractor>()
-            .to(handler::post);
-        $route
-            .get(path!($web_path, ":id"))
-            .with_path_extractor::<handler::IdExtractor>()
-            .to(handler::get);
-
-        if let Some(web_path) = $web_path {
-            log::info!("Serving front-end at {}", web_path.0.display());
-            $route
-                .get("/*")
-                .with_path_extractor::<gotham::handler::assets::FilePathExtractor>()
-                .to_new_handler(handler::Index::new(web_path.0, web_path.1.clone()));
-            $route.get("/").to_file(web_path.1);
-        }
-    }};
-}
-
 // Allowed because you can't create closures that share the same captures
 #[allow(clippy::option_if_let_else)]
 pub fn route(options: Options) -> gotham::router::Router {
@@ -65,7 +26,7 @@ pub fn route(options: Options) -> gotham::router::Router {
         let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
 
         builder::build_router(chain, pipelines, |route| {
-            add_routes!(route, web_path, cors);
+            wrap_routes(route, web_path, true);
         })
     } else {
         let pipeline = pipeline::new_pipeline()
@@ -76,9 +37,52 @@ pub fn route(options: Options) -> gotham::router::Router {
         let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
 
         builder::build_router(chain, pipelines, |route| {
-            add_routes!(route, web_path);
+            wrap_routes(route, web_path, false);
         })
     }
+}
+
+fn wrap_routes<C, P>(
+    route: &mut impl gotham::router::builder::DrawRoutes<C, P>,
+    web_path: Option<(std::path::PathBuf, std::path::PathBuf)>,
+    with_cors: bool,
+) where
+    C: gotham::pipeline::chain::PipelineHandleChain<P> + Copy + Send + Sync + 'static,
+    P: std::panic::RefUnwindSafe + Send + Sync + 'static,
+{
+    use gotham::router::builder::DefineSingleRoute;
+
+    if let Some(web_path) = web_path {
+        log::info!("Serving front-end at {}", web_path.0.display());
+        route
+            .get("/*")
+            .with_path_extractor::<gotham::handler::assets::FilePathExtractor>()
+            .to_new_handler(handler::Index::new(web_path.0, web_path.1.clone()));
+        route.get("/").to_file(web_path.1);
+        route.scope("/api", |route| add_routes(route, with_cors));
+    } else {
+        add_routes(route, with_cors);
+    }
+}
+
+fn add_routes<C, P>(route: &mut impl gotham::router::builder::DrawRoutes<C, P>, with_cors: bool)
+where
+    C: gotham::pipeline::chain::PipelineHandleChain<P> + Copy + Send + Sync + 'static,
+    P: std::panic::RefUnwindSafe + Send + Sync + 'static,
+{
+    use gotham::router::builder::DefineSingleRoute;
+
+    if with_cors {
+        route.options("/").to(|state| (state, ""));
+    }
+    route
+        .post("/")
+        .with_query_string_extractor::<handler::TtlExtractor>()
+        .to(handler::post);
+    route
+        .get("/:id")
+        .with_path_extractor::<handler::IdExtractor>()
+        .to(handler::get);
 }
 
 #[cfg(test)]
@@ -113,16 +117,6 @@ mod tests {
             store_path: None,
             web_path: Some(("res/test".into(), "res/test/index".into())),
         }
-    }
-
-    #[test]
-    fn path() {
-        let some = Some(());
-        let none: Option<()> = None;
-        assert_eq!(path!(none), "/");
-        assert_eq!(path!(none, "foo/bar"), "/foo/bar");
-        assert_eq!(path!(some), "/api/");
-        assert_eq!(path!(some, "foo/bar"), "/api/foo/bar");
     }
 
     #[test]
