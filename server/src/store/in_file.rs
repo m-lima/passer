@@ -36,9 +36,9 @@ impl std::convert::From<std::io::Error> for Error {
     }
 }
 
-impl std::convert::Into<Error> for InternalError {
-    fn into(self) -> Error {
-        Error::Generic(self.to_string())
+impl From<InternalError> for Error {
+    fn from(e: InternalError) -> Self {
+        Self::Generic(e.to_string())
     }
 }
 
@@ -236,7 +236,7 @@ impl Secret {
 
         let size = path.metadata()?.len();
 
-        Ok(Self { expiry, size, path })
+        Ok(Self { expiry, path, size })
     }
 
     fn write(&self, data: &[u8]) -> Result<(), InternalError> {

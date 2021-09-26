@@ -14,11 +14,12 @@ macro_rules! path {
 }
 
 macro_rules! add_routes {
-    ($route:ident, $web_path: ident, $cors:ident) => {
+    ($route:ident, $web_path: ident, cors) => {{
+        use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
         $route.options(path!($web_path)).to(|state| (state, ""));
         add_routes!($route, $web_path);
-    };
-    ($route:ident, $web_path: ident) => {
+    }};
+    ($route:ident, $web_path: ident) => {{
         use gotham::router::builder::{DefineSingleRoute, DrawRoutes};
 
         $route
@@ -38,9 +39,11 @@ macro_rules! add_routes {
                 .to_new_handler(handler::Index::new(web_path.0, web_path.1.clone()));
             $route.get("/").to_file(web_path.1);
         }
-    };
+    }};
 }
 
+// Allowed because you can't create closures that share the same captures
+#[allow(clippy::option_if_let_else)]
 pub fn route(options: Options) -> gotham::router::Router {
     use gotham::pipeline;
     use gotham::router::builder;

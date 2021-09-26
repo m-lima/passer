@@ -6,7 +6,6 @@ use super::store::Id;
 #[derive(Debug)]
 enum Error {
     NothingToInsert,
-    InvalidExpiry,
     Middleware(middleware::Error),
     Unknown(String),
 }
@@ -17,7 +16,6 @@ impl std::fmt::Display for Error {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NothingToInsert => write!(fmt, "nothing to insert"),
-            Self::InvalidExpiry => write!(fmt, "invalid expiry"),
             Self::Middleware(e) => write!(fmt, "{}", e),
             Self::Unknown(msg) => write!(fmt, "unknown error: {}", msg),
         }
@@ -35,7 +33,7 @@ impl Error {
         use super::store::Error as Store;
         use middleware::Error as Middleware;
         match self {
-            Error::NothingToInsert | Error::InvalidExpiry => hyper::StatusCode::BAD_REQUEST,
+            Error::NothingToInsert => hyper::StatusCode::BAD_REQUEST,
             Error::Middleware(Middleware::Store(Store::TooLarge)) => {
                 hyper::StatusCode::PAYLOAD_TOO_LARGE
             }
@@ -169,8 +167,6 @@ impl gotham::handler::Handler for Index {
         state: gotham::state::State,
     ) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>> {
         Box::pin(async {
-            // Allowed because this is third-party code being flagged
-            #[allow(clippy::used_underscore_binding)]
             match self.0.handle(state).await {
                 Ok(response) => Ok(response),
                 Err((state, _)) => self.1.handle(state).await,
@@ -204,8 +200,6 @@ pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handle
         let ttl = TtlExtractor::take_from(&mut state).ttl;
         let expiry = std::time::SystemTime::now() + ttl;
 
-        // Allowed because this is third-party code being flagged
-        #[allow(clippy::used_underscore_binding)]
         match body::to_bytes(Body::take_from(&mut state))
             .await
             .map_err(|e| Error::Unknown(e.to_string()))

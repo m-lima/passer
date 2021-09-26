@@ -46,8 +46,6 @@ impl gotham::middleware::Middleware for Cors {
             + 'static,
     {
         Box::pin(async {
-            // Allowed because this is third-party code being flagged
-            #[allow(clippy::used_underscore_binding)]
             chain(state).await.map(|(state, mut response)| {
                 let header = response.headers_mut();
                 header.insert(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN, self.0);
@@ -72,8 +70,6 @@ impl gotham::middleware::Middleware for Log {
             + 'static,
     {
         Box::pin(async {
-            // Allowed because this is third-party code being flagged
-            #[allow(clippy::used_underscore_binding)]
             chain(state).await.map(|(state, response)| {
                 {
                     use gotham::state::FromState;
@@ -112,16 +108,12 @@ impl gotham::middleware::Middleware for Log {
     }
 }
 
-#[derive(Clone, gotham_derive::StateData)]
-pub struct Store {
-    store: std::sync::Arc<std::sync::Mutex<dyn 'static + store::Store + Send>>,
-}
+#[derive(Clone, gotham_derive::StateData, gotham_derive::NewMiddleware)]
+pub struct Store(std::sync::Arc<std::sync::Mutex<dyn 'static + store::Store + Send>>);
 
 impl Store {
     pub fn new(store: impl 'static + store::Store + Send) -> Self {
-        Self {
-            store: std::sync::Arc::new(std::sync::Mutex::new(store)),
-        }
+        Self(std::sync::Arc::new(std::sync::Mutex::new(store)))
     }
 
     pub fn put(
@@ -129,13 +121,13 @@ impl Store {
         data: Vec<u8>,
         expiry: std::time::SystemTime,
     ) -> Result<store::Id, Error> {
-        let mut store = self.store.lock().map_err(|_| Error::FailedToAcquireStore)?;
+        let mut store = self.0.lock().map_err(|_| Error::FailedToAcquireStore)?;
         store.refresh();
         store.put(expiry, data).map_err(Error::Store)
     }
 
     pub fn get(&mut self, key: &store::Id) -> Result<Vec<u8>, Error> {
-        let mut store = self.store.lock().map_err(|_| Error::FailedToAcquireStore)?;
+        let mut store = self.0.lock().map_err(|_| Error::FailedToAcquireStore)?;
         store.refresh();
         store.get(key).map_err(Error::Store)
     }
@@ -152,13 +144,5 @@ impl gotham::middleware::Middleware for Store {
     {
         state.put(self);
         chain(state)
-    }
-}
-
-impl gotham::middleware::NewMiddleware for Store {
-    type Instance = Self;
-
-    fn new_middleware(&self) -> gotham::anyhow::Result<Self::Instance> {
-        Ok(self.clone())
     }
 }
