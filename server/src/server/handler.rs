@@ -1,53 +1,6 @@
-use gotham::hyper;
-
+use super::error::Error;
 use super::middleware;
 use super::store::Id;
-
-#[derive(Debug, thiserror::Error)]
-enum Error {
-    #[error("nothing to insert")]
-    NothingToInsert,
-    #[error("{0}")]
-    Middleware(middleware::Error),
-    #[error("{0}")]
-    Unknown(String),
-}
-
-impl From<middleware::Error> for Error {
-    fn from(e: middleware::Error) -> Self {
-        Self::Middleware(e)
-    }
-}
-
-impl Error {
-    fn status_code(&self) -> hyper::StatusCode {
-        use super::store::Error as Store;
-        use middleware::Error as Middleware;
-        match self {
-            Error::NothingToInsert => hyper::StatusCode::BAD_REQUEST,
-            Error::Middleware(Middleware::Store(Store::TooLarge)) => {
-                hyper::StatusCode::PAYLOAD_TOO_LARGE
-            }
-            Error::Middleware(Middleware::Store(Store::StoreFull)) => hyper::StatusCode::CONFLICT,
-            Error::Middleware(Middleware::Store(Store::SecretNotFound)) => {
-                hyper::StatusCode::NOT_FOUND
-            }
-            _ => hyper::StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-
-    fn into_response(self, state: &gotham::state::State) -> hyper::Response<hyper::Body> {
-        let status = self.status_code();
-        log::warn!("{}", &self);
-        gotham::helpers::http::response::create_empty_response(state, status)
-    }
-
-    fn into_handler_error(self) -> gotham::handler::HandlerError {
-        let status = self.status_code();
-        log::warn!("{}", &self);
-        gotham::handler::HandlerError::from(self).with_status(status)
-    }
-}
 
 #[derive(serde::Deserialize, gotham_derive::StateData, gotham_derive::StaticResponseExtender)]
 pub struct IdExtractor {
@@ -166,27 +119,29 @@ impl gotham::handler::Handler for Index {
     }
 }
 
-pub fn get(
-    mut state: gotham::state::State,
-) -> (gotham::state::State, hyper::Response<hyper::Body>) {
-    use gotham::handler::IntoResponse;
-    use gotham::state::FromState;
+pub fn get(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>> {
+    Box::pin(async {
+        use gotham::handler::IntoResponse;
+        use gotham::state::FromState;
 
-    let id = IdExtractor::take_from(&mut state).id;
-    let store = middleware::Store::borrow_mut_from(&mut state);
+        let id = IdExtractor::take_from(&mut state).id;
+        let store = middleware::Store::borrow_mut_from(&mut state);
 
-    let response = store
-        .get(&id)
-        .map_err(Error::from)
-        .map_or_else(|e| e.into_response(&state), |r| r.into_response(&state));
-    (state, response)
+        match store.get(&id).map_err(Error::from) {
+            Ok(r) => {
+                let response = r.into_response(&state);
+                Ok((state, response))
+            }
+            Err(e) => Err((state, e.into_handler_error())),
+        }
+    })
 }
 
 pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handler::HandlerFuture>> {
     Box::pin(async {
         use gotham::handler::IntoResponse;
+        use gotham::hyper::{body, Body};
         use gotham::state::FromState;
-        use hyper::{body, Body};
 
         let ttl = TtlExtractor::take_from(&mut state).ttl;
         let expiry = std::time::SystemTime::now() + ttl;
@@ -207,7 +162,7 @@ pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handle
                     .put(data, expiry)
                     .map(|key| {
                         let mut response = key.encode().into_response(&state);
-                        *response.status_mut() = hyper::StatusCode::CREATED;
+                        *response.status_mut() = gotham::hyper::StatusCode::CREATED;
                         response
                     })
                     .map_err(Error::from)

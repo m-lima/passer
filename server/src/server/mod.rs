@@ -1,3 +1,4 @@
+mod error;
 mod handler;
 mod middleware;
 
@@ -19,8 +20,8 @@ pub fn route(options: Options) -> gotham::router::Router {
 
     if let Some(cors) = options.cors {
         let pipeline = pipeline::new_pipeline()
-            .add(middleware::Log)
             .add(store)
+            .add(middleware::Log)
             .add(middleware::Cors::new(cors))
             .build();
 
