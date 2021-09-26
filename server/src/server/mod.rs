@@ -1,5 +1,6 @@
-use super::handler;
-use super::middleware;
+mod handler;
+mod middleware;
+
 use super::options::Options;
 use super::store;
 
