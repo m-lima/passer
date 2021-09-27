@@ -10,6 +10,18 @@ fn init_logger() {
         .set_time_format_str("%Y-%m-%dT%H:%M:%SZ")
         .build();
 
+    let color_choice = std::env::var("CLICOLOR_FORCE")
+        .ok()
+        .filter(|force| force != "0")
+        .map(|_| simplelog::ColorChoice::Always)
+        .or({
+            std::env::var("CLICOLOR")
+                .ok()
+                .filter(|clicolor| clicolor == "0")
+                .map(|_| simplelog::ColorChoice::Never)
+        })
+        .unwrap_or(simplelog::ColorChoice::Auto);
+
     simplelog::TermLogger::init(
         #[cfg(debug_assertions)]
         simplelog::LevelFilter::Debug,
@@ -17,7 +29,7 @@ fn init_logger() {
         simplelog::LevelFilter::Info,
         config,
         simplelog::TerminalMode::Mixed,
-        simplelog::ColorChoice::Auto,
+        color_choice,
     )
     .expect("Could not initialize logger");
 }

@@ -13,7 +13,7 @@ gotham_derive = "0.6"
 log = "0.4"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
-simplelog = "=0.10.0"
+simplelog = "0.10"
 thiserror = "1"
 tokio = "1"
 

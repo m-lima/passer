@@ -9,4 +9,6 @@ FROM debian:stable-slim
 COPY --from=rust /src/target/release/passer /usr/bin/passer
 EXPOSE 80
 
+ENV CLICOLOR_FORCE 1
+
 ENTRYPOINT ["passer"]
