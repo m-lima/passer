@@ -21,8 +21,8 @@ pub fn route(options: Options) -> gotham::router::Router {
     if let Some(cors) = options.cors {
         let pipeline = pipeline::new_pipeline()
             .add(store)
-            .add(middleware::Log)
             .add(middleware::Cors::new(cors))
+            .add(middleware::Log)
             .build();
 
         let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
@@ -32,8 +32,8 @@ pub fn route(options: Options) -> gotham::router::Router {
         })
     } else {
         let pipeline = pipeline::new_pipeline()
-            .add(middleware::Log)
             .add(store)
+            .add(middleware::Log)
             .build();
 
         let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
@@ -82,7 +82,7 @@ where
         .with_query_string_extractor::<handler::TtlExtractor>()
         .to(handler::post);
     route
-        .get("/:id")
+        .get("/:id:[a-zA-Z0-9_\\-]{43}")
         .with_path_extractor::<handler::IdExtractor>()
         .to(handler::get);
 }
@@ -175,7 +175,10 @@ mod tests {
         let response = test_server
             .client()
             .post(
-                concat!(host_path!("my_key"), "?ttl=1m"),
+                concat!(
+                    host_path!("super_mega_key_which_contains_43_characters"),
+                    "?ttl=1m"
+                ),
                 "foo",
                 mime::TEXT_PLAIN,
             )
@@ -276,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn reject_bad_ids() {
+    fn too_short_id() {
         let test_server = TestServer::new(route(options())).unwrap();
         let response = test_server
             .client()
@@ -284,7 +287,39 @@ mod tests {
             .perform()
             .unwrap();
 
-        assert_eq!(response.status(), hyper::StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
+
+        let body = response.read_body().unwrap();
+        assert!(body.is_empty());
+    }
+
+    #[test]
+    fn wrong_char_id() {
+        let test_server = TestServer::new(route(options())).unwrap();
+        let response = test_server
+            .client()
+            .get(host_path!("super_mega_key_which_contains_43_character$"))
+            .perform()
+            .unwrap();
+
+        assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
+
+        let body = response.read_body().unwrap();
+        assert!(body.is_empty());
+    }
+
+    #[test]
+    fn too_long_id() {
+        let test_server = TestServer::new(route(options())).unwrap();
+        let response = test_server
+            .client()
+            .get(host_path!(
+                "super_mega_key_which_contains_too_many_characters"
+            ))
+            .perform()
+            .unwrap();
+
+        assert_eq!(response.status(), hyper::StatusCode::NOT_FOUND);
 
         let body = response.read_body().unwrap();
         assert!(body.is_empty());

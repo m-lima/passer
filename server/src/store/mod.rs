@@ -27,6 +27,10 @@ impl Id {
     }
 
     pub fn decode<S: AsRef<str>>(string: S) -> Result<Self, Error> {
+        if string.as_ref().len() != 43 {
+            return Err(Error::InvalidId(base64::DecodeError::InvalidLength));
+        }
+
         let mut id = [0_u8; 32];
         let size = base64::decode_config_slice(
             string.as_ref().as_bytes(),

@@ -24,11 +24,19 @@ impl gotham::middleware::Middleware for Cors {
             + 'static,
     {
         Box::pin(async {
-            chain(state).await.map(|(state, mut response)| {
-                let header = response.headers_mut();
-                header.insert(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN, self.0);
-                (state, response)
-            })
+            chain(state)
+                .await
+                .or_else(|(state, err)| {
+                    use gotham::handler::IntoResponse;
+
+                    let response = err.into_response(&state);
+                    Ok((state, response))
+                })
+                .map(move |(state, mut response)| {
+                    let header = response.headers_mut();
+                    header.insert(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN, self.0);
+                    (state, response)
+                })
         })
     }
 }
@@ -84,9 +92,10 @@ impl Log {
         state: &gotham::state::State,
         level: log::Level,
         status: u16,
-        tail: &str,
+        tail: &impl std::fmt::Display,
         start: std::time::Instant,
     ) {
+        use colored::Colorize;
         use gotham::state::FromState;
 
         let ip = hyper::HeaderMap::borrow_from(state)
@@ -100,13 +109,8 @@ impl Log {
                 |fwd| format!("{} [p]", fwd),
             );
 
-        let user = hyper::HeaderMap::borrow_from(state)
-            .get("x-user")
-            .and_then(|fwd| fwd.to_str().ok())
-            .unwrap_or("UNKNOWN");
-
         let method = hyper::Method::borrow_from(state);
-        let path = hyper::Uri::borrow_from(state);
+        let path = hyper::Uri::borrow_from(state).to_string().white();
         let request_length = hyper::HeaderMap::borrow_from(state)
             .get(hyper::header::CONTENT_LENGTH)
             .and_then(|len| len.to_str().ok())
@@ -115,9 +119,8 @@ impl Log {
         // Log out
         log::log!(
             level,
-            "{} {} {} {}{} - {}{} - {:?}",
+            "{} {} {}{} - {}{} - {:?}",
             ip,
-            user,
             method,
             path,
             request_length,

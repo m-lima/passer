@@ -177,7 +177,7 @@ pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handle
         store
             .put(body.to_vec(), expiry)
             .map(|key| {
-                let mut response = key.encode().into_response(&state);
+                let mut response = key.encode().into_response(state);
                 *response.status_mut() = gotham::hyper::StatusCode::CREATED;
                 response
             })
