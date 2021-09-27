@@ -25,13 +25,14 @@ impl Error {
 
         match self {
             Error::Store(StoreError::SecretNotFound) => StatusCode::NOT_FOUND,
-            Error::NothingToInsert
-            | Error::ContentLengthMissing
-            | Error::PayloadTooLarge
-            | Error::Store(StoreError::InvalidId(_)) => StatusCode::BAD_REQUEST,
+            Error::Store(StoreError::InvalidId(_)) => StatusCode::BAD_REQUEST,
+            Error::ContentLengthMissing => StatusCode::LENGTH_REQUIRED,
+            Error::NothingToInsert => StatusCode::UNPROCESSABLE_ENTITY,
             Error::ReadTimeout => StatusCode::REQUEST_TIMEOUT,
             Error::Store(StoreError::StoreFull) => StatusCode::CONFLICT,
-            Error::Store(StoreError::TooLarge) => StatusCode::PAYLOAD_TOO_LARGE,
+            Error::Store(StoreError::TooLarge) | Error::PayloadTooLarge => {
+                StatusCode::PAYLOAD_TOO_LARGE
+            }
             Error::Hyper(_)
             | Error::FailedToAcquireStore
             | Error::Store(StoreError::Generic(_)) => StatusCode::INTERNAL_SERVER_ERROR,
