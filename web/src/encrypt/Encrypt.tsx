@@ -1,7 +1,6 @@
 import React, { Dispatch, SetStateAction, useState, useRef } from 'react'
 import {
   Button,
-  CustomInput,
   FormGroup,
   Input,
   ListGroup,
@@ -40,7 +39,7 @@ class EncryptResult {
   }
 
   static reduce = (acc: EncryptResult, curr: Alert | pack.Encrypted) => {
-    curr instanceof Alert ?  acc.alerts.push(curr) : acc.packs.push(curr)
+    curr instanceof Alert ? acc.alerts.push(curr) : acc.packs.push(curr)
     return acc
   }
 }
@@ -162,19 +161,19 @@ const Encrypt = (props: IProps) => {
       redirect: 'follow',
       body: encode(packs.map(p => p.data.payload())),
     })
-    .then(response => {
-      if (response.ok) {
-        return response.text()
-      } else {
-        throw Alert.ERROR_UPLOADING
-      }
-    })
-    .then(url => {
-      setUploadResult(new UploadResult(url, pack.keyString()))
-      props.setAlerts(Alert.SUCCESS_UPLOADING)
-    })
-    .catch(() => props.setAlerts([Alert.ERROR_UPLOADING]))
-    .then(() => setLoading(''))
+      .then(response => {
+        if (response.ok) {
+          return response.text()
+        } else {
+          throw Alert.ERROR_UPLOADING
+        }
+      })
+      .then(url => {
+        setUploadResult(new UploadResult(url, pack.keyString()))
+        props.setAlerts(Alert.SUCCESS_UPLOADING)
+      })
+      .catch(() => props.setAlerts([Alert.ERROR_UPLOADING]))
+      .then(() => setLoading(''))
   }
 
   const inputModal = () =>
@@ -221,17 +220,17 @@ const Encrypt = (props: IProps) => {
       </div>
       {Number.parseInt(sizePercentage) >= 10
         ? <Progress
-            color='info'
-            value={sizePercentage}
-            className='enc-progress'
-          >
-            <span className='enc-progresss-value'>{sizePercentage}{' %'}</span>
-          </Progress>
+          color='info'
+          value={sizePercentage}
+          className='enc-progress'
+        >
+          <span className='enc-progresss-value'>{sizePercentage}{' %'}</span>
+        </Progress>
         : <></>
       }
       <FormGroup>
         <b>Expiry: {ttlToText(ttl)}</b>
-        <CustomInput
+        <Input
           id='expiry-slider'
           type='range'
           min={1}
@@ -261,16 +260,16 @@ const Encrypt = (props: IProps) => {
       {packs.length > 0
         ? packList()
         : <div className='enc-instruction'>
-            <span className='avoid-wrap'>Encrypt data locally in your browser</span>
-            {' '}
-            <span className='avoid-wrap'>and share it securely.</span>
-            <br />
-            <div>
-              <Link to='/howitworks'>
-                How it works
-              </Link>
-            </div>
+          <span className='avoid-wrap'>Encrypt data locally in your browser</span>
+          {' '}
+          <span className='avoid-wrap'>and share it securely.</span>
+          <br />
+          <div>
+            <Link to='/howitworks'>
+              How it works
+            </Link>
           </div>
+        </div>
       }
     </>
 

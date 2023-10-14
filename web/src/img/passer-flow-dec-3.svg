@@ -1,5 +1,5 @@
-<svg width="540" height="120" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xhtml="http://www.w3.org/1999/xhtml">
- <xhtml:style/>
+<svg width="540" height="120" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlnsXhtml="http://www.w3.org/1999/xhtml">
+ <xhtmlStyle/>
  <g transform="translate(19.5,19.5)">
   <g transform="matrix(1.0128 0 0 1.0084 -.0001803 0)">
    <path d="m62.176 71.979c-0.042-13.617-6.992-22.985-19.109-26.539 7.358-4.182 12.336-12.087 12.336-21.138-1e-3 -13.401-10.902-24.302-24.302-24.302-13.399 0-24.301 10.901-24.301 24.302 0 9.083 5.012 17.012 12.412 21.182-12.036 3.624-19.142 13.096-19.186 26.496-0.071 0.534-0.066 1.714 0.974 3.063 3.212 4.165 13.339 6.277 30.101 6.277s26.891-2.112 30.102-6.277c1.039-1.35 1.045-2.529 0.973-3.064z" fill="#3966a0" stroke="#000" stroke-miterlimit="10" stroke-opacity="0"/>

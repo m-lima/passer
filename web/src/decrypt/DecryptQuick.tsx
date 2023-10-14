@@ -34,7 +34,7 @@ const Decrypt = (props: IProps) => {
       return
     }
 
-    if (hash.length !== 102) {
+    if (!hash || hash.length !== 102) {
       setStatus(Status.INVALID_LINK)
       return
     }
@@ -46,29 +46,29 @@ const Decrypt = (props: IProps) => {
       fetch(`${config.API}${url}`, {
         redirect: 'follow',
       })
-      .then(response => {
-        if (response.ok) {
-          return response.arrayBuffer()
-        } else {
-          throw Status.NOT_FOUND
-        }
-      })
-      .catch(() => { throw Status.NOT_FOUND })
-      .then(data => {
-        try {
-          setStatus(Status.DECRYPTING)
-          return pack.decode(data)
-        } catch {
-          throw Status.CORRUPTED
-        }
-      })
-      .then(decoded => pack.decryptWithKey(key, decoded).catch(() => { throw Status.CORRUPTED }))
-      .then(data => {
+        .then(response => {
+          if (response.ok) {
+            return response.arrayBuffer()
+          } else {
+            throw Status.NOT_FOUND
+          }
+        })
+        .catch(() => { throw Status.NOT_FOUND })
+        .then(data => {
+          try {
+            setStatus(Status.DECRYPTING)
+            return pack.decode(data)
+          } catch {
+            throw Status.CORRUPTED
+          }
+        })
+        .then(decoded => pack.decryptWithKey(key, decoded).catch(() => { throw Status.CORRUPTED }))
+        .then(data => {
           setData(data)
           props.setAlerts(Alert.SUCCESS_DECRYPTING)
           setStatus(Status.DECRYPTED)
-      })
-      .catch(setStatus)
+        })
+        .catch(setStatus)
     } catch {
       setStatus(Status.INVALID_LINK)
     }

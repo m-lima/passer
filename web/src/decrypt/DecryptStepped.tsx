@@ -3,7 +3,6 @@ import {
   Button,
   Input,
   InputGroup,
-  InputGroupAddon,
   InputGroupText,
   ListGroup,
   ListGroupItem,
@@ -48,18 +47,18 @@ const DecryptStepped = (props: IProps) => {
     fetch(`${config.API}${hash}`, {
       redirect: 'follow',
     })
-    .then(response => {
-      if (response.ok) {
-        return response.arrayBuffer()
-      } else {
-        throw Status.NOT_FOUND
-      }
-    })
-    .catch(() => { throw Status.NOT_FOUND })
-    .then(data => { try { return pack.decode(data) } catch { throw Status.CORRUPTED } })
-    .then(setData)
-    .then(() => setStatus(Status.DOWNLOADED))
-    .catch(setStatus)
+      .then(response => {
+        if (response.ok) {
+          return response.arrayBuffer()
+        } else {
+          throw Status.NOT_FOUND
+        }
+      })
+      .catch(() => { throw Status.NOT_FOUND })
+      .then(data => { try { return pack.decode(data) } catch { throw Status.CORRUPTED } })
+      .then(setData)
+      .then(() => setStatus(Status.DOWNLOADED))
+      .catch(setStatus)
   }, [hash])
 
   const decrypt = () => {
@@ -70,15 +69,15 @@ const DecryptStepped = (props: IProps) => {
     setStatus(Status.DECRYPTING)
 
     pack.decrypt(key, data as pack.Decoded)
-    .then(data => {
-      setData(data)
-      props.setAlerts(Alert.SUCCESS_DECRYPTING)
-      setStatus(Status.DECRYPTED)
-    })
-    .catch(() => {
-      props.setAlerts([Alert.INVALID_KEY])
-      setStatus(Status.DOWNLOADED)
-    })
+      .then(data => {
+        setData(data)
+        props.setAlerts(Alert.SUCCESS_DECRYPTING)
+        setStatus(Status.DECRYPTED)
+      })
+      .catch(() => {
+        props.setAlerts([Alert.INVALID_KEY])
+        setStatus(Status.DOWNLOADED)
+      })
   }
 
   const KeyPrompt = () =>
@@ -98,11 +97,9 @@ const DecryptStepped = (props: IProps) => {
         </ListGroupItem>
       </ListGroup>
       <InputGroup>
-        <InputGroupAddon addonType='prepend'>
-          <InputGroupText>
-            <Glyph src={keyImg} />
-          </InputGroupText>
-        </InputGroupAddon>
+        <InputGroupText>
+          <Glyph src={keyImg} />
+        </InputGroupText>
         <Input
           type='text'
           autoFocus
@@ -111,11 +108,9 @@ const DecryptStepped = (props: IProps) => {
           onChange={e => setKey(e.target.value)}
           value={key}
         />
-        <InputGroupAddon addonType='append'>
-          <Button color='success' onClick={decrypt} disabled={key.length !== 59}>
-            Decrypt
-          </Button>
-        </InputGroupAddon>
+        <Button color='success' onClick={decrypt} disabled={key.length !== 59}>
+          Decrypt
+        </Button>
       </InputGroup>
     </div>
 

@@ -1,12 +1,12 @@
-import React, { FunctionComponent } from 'react'
+import React, { FunctionComponent, PropsWithChildren } from 'react'
 
 import './Footer.scss'
 
-const Footer: FunctionComponent = (props) =>
+const Footer: FunctionComponent<PropsWithChildren> = (props) =>
   <>
     <div className='footer-spacer' />
     <footer className='footer'>
-      { props.children }
+      {props.children}
     </footer>
   </>
 

@@ -13,7 +13,7 @@ const generateRandom = (size: number) => {
 
 const generateRandomName = () => {
   const suffix = generateRandom(8)
-  return new TextDecoder().decode(suffix.map(b => b % 60).map(n => n < 10 ? n + 48 :( n < 35 ? n + 55 : n + 62)))
+  return new TextDecoder().decode(suffix.map(b => b % 60).map(n => n < 10 ? n + 48 : (n < 35 ? n + 55 : n + 62)))
 }
 
 export interface Encrypted {

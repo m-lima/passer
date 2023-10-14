@@ -16,17 +16,17 @@ WORKDIR /web
 # Dependencies
 COPY --from=wasm /src/pkg wasm/pkg
 COPY web/package.json \
-     web/package-lock.json \
+     web/yarn.lock \
      web/tsconfig.json \
      web/config-overrides.js \
      ./
-RUN npm install
+RUN yarn install
 
 # Build
 COPY web/src src
 COPY web/public public
 COPY web/cfg/Config.bundle.ts src/Config.ts
-RUN npm run build
+RUN yarn build
 
 ## Rust
 FROM rust as rust

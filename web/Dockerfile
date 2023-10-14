@@ -15,14 +15,14 @@ WORKDIR /web
 
 # Dependencies
 COPY --from=wasm /src/pkg wasm/pkg
-COPY package.json package-lock.json tsconfig.json config-overrides.js ./
-RUN npm install
+COPY package.json yarn.lock tsconfig.json config-overrides.js ./
+RUN yarn install
 
 # Build
 COPY src src
 COPY public public
 COPY cfg/Config.standalone.ts src/Config.ts
-RUN npm run build
+RUN yarn build
 
 ## Pack
 FROM alpine
