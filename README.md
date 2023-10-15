@@ -100,7 +100,7 @@ $ cp cfg/Config.bundle.ts src/Config.ts
 ```
 
 #### Build all the components
-Follow [the build instructions](##Building)
+Follow [the build instructions](#building)
 
 #### Start the server
 
@@ -129,7 +129,7 @@ Replace the entry `export const API = '<YOUR_BACKEND>'` with the location of whe
 will be served.
 
 #### Build all the components
-Follow [the build instructions](##Building)
+Follow [the build instructions](#building)
 
 #### Start the API
 
