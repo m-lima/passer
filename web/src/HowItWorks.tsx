@@ -24,7 +24,7 @@ import dec6 from './img/passer-flow-dec-6.svg'
 const encryptionItems = [
   {
     src: enc1,
-    header: 'Content is sent to browser',
+    header: 'Content is sent to the browser',
     caption: 'This happens locally without any upload',
   },
   {
