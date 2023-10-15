@@ -3,6 +3,7 @@ import {
   Button,
   Input,
   InputGroup,
+  InputGroupAddon,
 } from 'reactstrap'
 
 import './Result.css'
@@ -49,9 +50,11 @@ const Result = (props: IProps) => {
       <div className='result-block'>
         <h6>Copy the link below and pass it to who should receive the encrypted data</h6>
         <InputGroup>
-          <Button color='info' onClick={copySingle}>
-            <Glyph src={copy} />
-          </Button>
+          <InputGroupAddon addonType='prepend'>
+            <Button color='info' onClick={copySingle}>
+              <Glyph src={copy} />
+            </Button>
+          </InputGroupAddon>
           <Input innerRef={singleRef} type='text' readOnly value={window.location.origin + config.Path.DECRYPT_QUICK + props.url + props.keyString} />
         </InputGroup>
       </div>
@@ -59,18 +62,22 @@ const Result = (props: IProps) => {
       <div className='result-block'>
         <h6>Or, for extra security, send the link and the decryption key separately</h6>
         <InputGroup>
-          <Button color='info' onClick={copyUrl}>
-            <Glyph src={url} />
-          </Button>
+          <InputGroupAddon addonType='prepend'>
+            <Button color='info' onClick={copyUrl}>
+              <Glyph src={url} />
+            </Button>
+          </InputGroupAddon>
           <Input innerRef={urlRef} type='text' readOnly value={window.location.origin + config.Path.DECRYPT_STEPPED + props.url} />
         </InputGroup>
       </div>
 
       <div className='result-block'>
         <InputGroup>
-          <Button color='info' onClick={copyKey}>
-            <Glyph src={key} />
-          </Button>
+          <InputGroupAddon addonType='prepend'>
+            <Button color='info' onClick={copyKey}>
+              <Glyph src={key} />
+            </Button>
+          </InputGroupAddon>
           <Input innerRef={keyRef} type='text' readOnly value={props.keyString} />
         </InputGroup>
       </div>
