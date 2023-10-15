@@ -22,5 +22,5 @@ export const decrypt = async (key: string, decoded: Decoded) => {
 
 export const decryptWithKey = async (key: passer.Key, decoded: Decoded) => {
   return util.yieldProcessing()
-  .then(() => decoded.data.map(datum => key.decrypt(datum)))
+    .then(() => decoded.data.map(datum => key.decrypt(datum)))
 }
