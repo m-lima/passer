@@ -1,8 +1,16 @@
-#![deny(warnings, clippy::pedantic, clippy::all)]
-#![warn(rust_2018_idioms)]
+#![deny(warnings, clippy::pedantic, clippy::all, rust_2018_idioms)]
 #![allow(clippy::missing_errors_doc)]
 // Allowed because it is wasm
 #![allow(clippy::must_use_candidate)]
+
+//! Provides encryption using AES-GCM in wasm
+//!
+//! # Typical flow:
+//! ## Encryption
+//! `Either<String | [u8]> -> InnerPack -> Serialize() -> Compress() -> Encrypt() -> Encrypted`
+//! ## Decryption
+//! `Encrypted -> Decrypt() -> Decompress() -> Deserialize() -> InnerPack -> Pack`
+//! Pack is then accessible from JS through wasm bindgen
 
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -19,12 +27,12 @@ impl Error {
     }
 }
 
-impl std::convert::Into<JsValue> for Error {
-    fn into(self) -> JsValue {
-        match self {
-            Self::FailedToProcess => JsValue::from("FAILED_TO_PROCESS"),
-            Self::InvalidKey => JsValue::from("INVALID_KEY"),
-            Self::FailedToParseKey => JsValue::from("FAILED_TO_PARSE_KEY"),
+impl From<Error> for JsValue {
+    fn from(value: Error) -> Self {
+        match value {
+            Error::FailedToProcess => JsValue::from("FAILED_TO_PROCESS"),
+            Error::InvalidKey => JsValue::from("INVALID_KEY"),
+            Error::FailedToParseKey => JsValue::from("FAILED_TO_PARSE_KEY"),
         }
     }
 }
@@ -39,14 +47,14 @@ pub struct Key {
 impl Key {
     #[wasm_bindgen(constructor)]
     pub fn new(key_bytes: &[u8]) -> Result<Key, JsValue> {
-        use aes_gcm::aead::{generic_array::GenericArray, NewAead};
+        use aes_gcm::aead::{generic_array::GenericArray, KeyInit};
 
         if key_bytes.len() != 44 {
             return Err(Error::InvalidKey.into_js_value());
         }
 
         let mut key = [0; 44];
-        key.copy_from_slice(&key_bytes);
+        key.copy_from_slice(key_bytes);
 
         Ok(Self {
             cipher: aes_gcm::Aes256Gcm::new(GenericArray::from_slice(&key_bytes[..32])),
@@ -67,7 +75,7 @@ impl Key {
         base64::encode_config(&self.key[..], base64::URL_SAFE_NO_PAD).into()
     }
 
-    fn encrypt(&self, pack: &Pack) -> Result<Encrypted, JsValue> {
+    fn encrypt(&self, pack: &SerdePack) -> Result<Encrypted, JsValue> {
         use aes_gcm::aead::{generic_array::GenericArray, Aead};
 
         let binary =
@@ -89,7 +97,7 @@ impl Key {
         let pack = {
             let data = Vec::from(data);
             let size = data.len();
-            Pack {
+            SerdePack {
                 plain_message: true,
                 name: name.into(),
                 size,
@@ -101,7 +109,7 @@ impl Key {
 
     #[wasm_bindgen]
     pub fn encrypt_file(&self, name: &str, data: &[u8]) -> Result<Encrypted, JsValue> {
-        let pack = Pack {
+        let pack = SerdePack {
             plain_message: false,
             name: name.into(),
             size: data.len(),
@@ -121,7 +129,9 @@ impl Key {
         let decompressed = miniz_oxide::inflate::decompress_to_vec(&decrypted)
             .map_err(|_| Error::FailedToProcess.into_js_value())?;
 
-        bincode::deserialize(&decompressed).map_err(|_| Error::FailedToProcess.into_js_value())
+        bincode::deserialize(&decompressed)
+            .map(Pack::new)
+            .map_err(|_| Error::FailedToProcess.into_js_value())
     }
 }
 
@@ -135,42 +145,68 @@ impl Encrypted {
     }
 }
 
-#[wasm_bindgen]
+/// The pack contains the data that should be encrypted and the metadata about it
 #[derive(Serialize, Deserialize)]
-pub struct Pack {
+struct SerdePack {
     plain_message: bool,
     name: String,
     size: usize,
     data: Vec<u8>,
 }
 
+/// The pack contains the data that should be encrypted and the metadata about it
+///
+/// This struct exist to create a wasm interface to the inner pack
+#[wasm_bindgen]
+pub struct Pack {
+    inner: SerdePack,
+}
+
+impl Pack {
+    fn new(inner: SerdePack) -> Self {
+        Self { inner }
+    }
+}
+
 #[wasm_bindgen]
 impl Pack {
     pub fn plain_message(&self) -> js_sys::Boolean {
-        self.plain_message.into()
+        self.inner.plain_message.into()
     }
 
     pub fn name(&self) -> js_sys::JsString {
-        self.name.clone().into()
+        self.inner.name.clone().into()
     }
 
     pub fn size(&self) -> usize {
-        self.size
+        self.inner.size
     }
 
     pub fn data(&self) -> js_sys::Uint8Array {
-        unsafe { js_sys::Uint8Array::view(&self.data) }
+        unsafe { js_sys::Uint8Array::view(&self.inner.data) }
     }
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn round_trip() {
-        let key = super::Key::new(&[0; 44]).unwrap();
+    fn string_round_trip() {
+        let key_bytes = (1..).take(44).collect::<Vec<u8>>();
+        let key = super::Key::new(&key_bytes).unwrap();
         let encrypted = key.encrypt_string("foo", "bar").unwrap();
-        let decrypted = key.decrypt(&encrypted.0).unwrap();
+        let decrypted = key.decrypt(&encrypted.0).unwrap().inner;
         assert!(decrypted.plain_message);
+        assert_eq!(decrypted.name, "foo");
+        assert_eq!(decrypted.data, Vec::from("bar"));
+    }
+
+    #[test]
+    fn data_round_trip() {
+        let key_bytes = (1..).take(44).collect::<Vec<u8>>();
+        let key = super::Key::new(&key_bytes).unwrap();
+        let encrypted = key.encrypt_file("foo", b"bar").unwrap();
+        let decrypted = key.decrypt(&encrypted.0).unwrap().inner;
+        assert!(!decrypted.plain_message);
         assert_eq!(decrypted.name, "foo");
         assert_eq!(decrypted.data, Vec::from("bar"));
     }
