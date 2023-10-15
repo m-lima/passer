@@ -1,6 +1,6 @@
 [package]
 name = "passer"
-version = "0.1.1"
+version = "0.7.0"
 authors = ["Marcelo Lima <marcelowind@gmail.com>"]
 edition = "2018"
 

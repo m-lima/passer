@@ -68,7 +68,7 @@ fn convert_str_to_duration(value: &str) -> Result<std::time::Duration, String> {
         Some('h') => 60 * 60,
         Some('d') => 24 * 60 * 60,
         Some(unit) => {
-            return Err(format!("invalid duration unit: {}", unit));
+            return Err(format!("invalid duration unit: {unit}"));
         }
         None => {
             return Err(String::from("ttl is empty"));
@@ -77,22 +77,19 @@ fn convert_str_to_duration(value: &str) -> Result<std::time::Duration, String> {
 
     let amount = value[..value.len() - 1]
         .parse::<u64>()
-        .map_err(|e| format!("could not parse amount: {}", e))?;
+        .map_err(|e| format!("could not parse amount: {e}"))?;
     Ok(std::time::Duration::from_secs(unit * amount))
 }
 
 #[derive(Clone)]
-pub struct Index(
-    gotham::handler::assets::DirHandler,
-    gotham::handler::assets::FileHandler,
-);
+pub struct Index(gotham::handler::DirHandler, gotham::handler::FileHandler);
 
 impl Index {
     pub fn new(root: std::path::PathBuf, index: std::path::PathBuf) -> Self {
-        use gotham::handler::assets;
+        use gotham::handler;
         Self(
-            assets::DirHandler::new(assets::FileOptions::from(root)),
-            assets::FileHandler::new(assets::FileOptions::from(index)),
+            handler::DirHandler::new(handler::FileOptions::from(root)),
+            handler::FileHandler::new(handler::FileOptions::from(index)),
         )
     }
 }

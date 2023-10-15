@@ -7,7 +7,9 @@ mod store;
 
 fn init_logger() {
     let config = simplelog::ConfigBuilder::new()
-        .set_time_format_str("%Y-%m-%dT%H:%M:%SZ")
+        .set_time_format_custom(time::macros::format_description!(
+            "[year]-[month]-[day]T[hour]:[minute]:[second]Z"
+        ))
         .build();
 
     let color_choice = std::env::var("CLICOLOR_FORCE")
@@ -38,16 +40,18 @@ fn main() {
     let options = options::parse();
     init_logger();
 
-    if options.threads > 0 {
+    if let Err(e) = if options.threads > 0 {
         let threads = usize::from(options.threads);
         log::info!("Core threads set to {}", options.threads);
         gotham::start_with_num_threads(
             format!("0.0.0.0:{}", options.port),
             server::route(options),
             threads,
-        );
+        )
     } else {
         log::info!("Core threads set to automatic");
-        gotham::start(format!("0.0.0.0:{}", options.port), server::route(options));
+        gotham::start(format!("0.0.0.0:{}", options.port), server::route(options))
+    } {
+        log::error!("Error: {e}");
     }
 }

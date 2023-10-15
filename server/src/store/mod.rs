@@ -3,7 +3,7 @@ mod in_memory;
 
 pub const MAX_SECRET_SIZE: u64 = 110 * 1024 * 1024;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, Eq, PartialEq)]
 pub enum Error {
     #[error("payload too large")]
     TooLarge,
@@ -31,10 +31,11 @@ impl Id {
             return Err(Error::InvalidId(base64::DecodeError::InvalidLength));
         }
 
+        // TODO: Over allocating due to bug https://github.com/marshallpierce/rust-base64/pull/227
         let mut id = [0_u8; 32];
-        let size = base64::decode_config_slice(
+        let size = base64::engine::Engine::decode_slice_unchecked(
+            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
             string.as_ref().as_bytes(),
-            base64::URL_SAFE_NO_PAD,
             &mut id,
         )
         .map_err(Error::InvalidId)?;
@@ -47,7 +48,7 @@ impl Id {
     }
 
     pub fn encode(&self) -> String {
-        base64::encode_config(&self.0, base64::URL_SAFE_NO_PAD)
+        base64::engine::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, self.0)
     }
 }
 
@@ -86,7 +87,7 @@ mod test {
     fn id_roundtrip() {
         let id = Id::new();
         let id_string = id.encode();
-        let id_recovered = Id::decode(&id_string).unwrap();
+        let id_recovered = Id::decode(id_string).unwrap();
 
         assert_eq!(id, id_recovered);
     }
@@ -96,10 +97,10 @@ mod test {
         let id = Id::new();
         let id_string = id.encode();
 
-        if let Err(super::Error::InvalidId(_)) = Id::decode(&id_string[1..]) {
-        } else {
-            panic!();
-        }
+        assert_eq!(
+            Id::decode(&id_string[1..]).unwrap_err(),
+            super::Error::InvalidId(base64::DecodeError::InvalidLength)
+        );
     }
 
     #[test]

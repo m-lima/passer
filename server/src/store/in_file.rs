@@ -167,9 +167,8 @@ impl super::Store for Store {
         use std::io::Read;
         use std::io::Seek;
 
-        let mut secret = match self.secrets.remove(id) {
-            Some(secret) => secret,
-            None => return Err(Error::SecretNotFound),
+        let Some(mut secret) = self.secrets.remove(id) else {
+            return Err(Error::SecretNotFound);
         };
         secret.expiry = std::time::UNIX_EPOCH;
 
@@ -241,7 +240,7 @@ impl Secret {
             .map_err(|_| InternalError::InvalidExpiry)?
             .as_millis();
 
-        file.write_all(format!("passer\n{:014}\n", epoch_millis).as_bytes())?;
+        file.write_all(format!("passer\n{epoch_millis:014}\n").as_bytes())?;
         file.write_all(data)?;
         Ok(())
     }
@@ -256,9 +255,8 @@ impl std::ops::Drop for Secret {
         if self.expired() {
             if let Err(e) = std::fs::remove_file(&self.path) {
                 log::warn!(
-                    "Could not delete untracked secret file {}: {}",
+                    "Could not delete untracked secret file {}: {e}",
                     self.path.display(),
-                    e
                 );
             }
         }
@@ -404,7 +402,7 @@ mod tests {
 
         let result = store.get(&id).unwrap();
 
-        assert!(!path.get().join(&id.encode()).exists());
+        assert!(!path.get().join(id.encode()).exists());
         assert_eq!(&result[..], b"test");
     }
 
@@ -449,6 +447,6 @@ mod tests {
             .encode();
 
         assert_eq!(store.size(), 7 + 15 + 4);
-        assert_eq!(path.get().join(&id).metadata().unwrap().len(), 7 + 15 + 4);
+        assert_eq!(path.get().join(id).metadata().unwrap().len(), 7 + 15 + 4);
     }
 }

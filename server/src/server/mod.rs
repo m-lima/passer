@@ -25,7 +25,7 @@ pub fn route(options: Options) -> gotham::router::Router {
             .add(middleware::Log)
             .build();
 
-        let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
+        let (chain, pipelines) = pipeline::single_pipeline(pipeline);
 
         builder::build_router(chain, pipelines, |route| {
             wrap_routes(route, web_path, true);
@@ -36,7 +36,7 @@ pub fn route(options: Options) -> gotham::router::Router {
             .add(middleware::Log)
             .build();
 
-        let (chain, pipelines) = pipeline::single::single_pipeline(pipeline);
+        let (chain, pipelines) = pipeline::single_pipeline(pipeline);
 
         builder::build_router(chain, pipelines, |route| {
             wrap_routes(route, web_path, false);
@@ -49,7 +49,7 @@ fn wrap_routes<C, P>(
     web_path: Option<(std::path::PathBuf, std::path::PathBuf)>,
     with_cors: bool,
 ) where
-    C: gotham::pipeline::chain::PipelineHandleChain<P> + Copy + Send + Sync + 'static,
+    C: gotham::pipeline::PipelineHandleChain<P> + Copy + Send + Sync + 'static,
     P: std::panic::RefUnwindSafe + Send + Sync + 'static,
 {
     use gotham::router::builder::DefineSingleRoute;
@@ -58,7 +58,7 @@ fn wrap_routes<C, P>(
         log::info!("Serving front-end at {}", web_path.0.display());
         route
             .get("/*")
-            .with_path_extractor::<gotham::handler::assets::FilePathExtractor>()
+            .with_path_extractor::<gotham::handler::FilePathExtractor>()
             .to_new_handler(handler::Index::new(web_path.0, web_path.1.clone()));
         route.get("/").to_file(web_path.1);
         route.scope("/api", |route| add_routes(route, with_cors));
@@ -69,7 +69,7 @@ fn wrap_routes<C, P>(
 
 fn add_routes<C, P>(route: &mut impl gotham::router::builder::DrawRoutes<C, P>, with_cors: bool)
 where
-    C: gotham::pipeline::chain::PipelineHandleChain<P> + Copy + Send + Sync + 'static,
+    C: gotham::pipeline::PipelineHandleChain<P> + Copy + Send + Sync + 'static,
     P: std::panic::RefUnwindSafe + Send + Sync + 'static,
 {
     use gotham::router::builder::DefineSingleRoute;
@@ -197,10 +197,14 @@ mod tests {
         let response = test_server
             .client()
             .post(concat!(host_path!(), "?ttl=1m"), "", mime::TEXT_PLAIN)
+            .with_header(
+                hyper::header::CONTENT_LENGTH,
+                hyper::header::HeaderValue::from_static("0"),
+            )
             .perform()
             .unwrap();
 
-        assert_eq!(response.status(), hyper::StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), hyper::StatusCode::UNPROCESSABLE_ENTITY);
 
         let body = response.read_body().unwrap();
         assert!(body.is_empty());

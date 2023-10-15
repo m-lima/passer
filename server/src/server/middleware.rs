@@ -106,7 +106,7 @@ impl Log {
                     gotham::state::client_addr(state)
                         .map_or_else(|| String::from("??"), |addr| addr.ip().to_string())
                 },
-                |fwd| format!("{} [p]", fwd),
+                |fwd| format!("{fwd} [p]"),
             );
 
         let method = hyper::Method::borrow_from(state);
@@ -114,7 +114,7 @@ impl Log {
         let request_length = hyper::HeaderMap::borrow_from(state)
             .get(hyper::header::CONTENT_LENGTH)
             .and_then(|len| len.to_str().ok())
-            .map_or_else(String::new, |len| format!(" {}b", len));
+            .map_or_else(String::new, |len| format!(" {len}b"));
 
         // Log out
         log::log!(
@@ -154,7 +154,7 @@ impl gotham::middleware::Middleware for Log {
                     let length = gotham::hyper::body::HttpBody::size_hint(response.body())
                         .exact()
                         .filter(|len| *len > 0)
-                        .map_or_else(String::new, |len| format!(" {}b", len));
+                        .map_or_else(String::new, |len| format!(" {len}b"));
 
                     Self::log(&state, log::Level::Info, status, &length, start);
 
@@ -164,7 +164,7 @@ impl gotham::middleware::Middleware for Log {
                     let status = error.status().as_u16();
                     let (level, error_message) = error.downcast_cause_ref::<Error>().map_or_else(
                         || (Self::log_level_for(status), " [Unknown error]".to_owned()),
-                        |e| (Self::log_level(e), format!(" [{}]", e)),
+                        |e| (Self::log_level(e), format!(" [{e}]")),
                     );
 
                     Self::log(&state, level, status, &error_message, start);
