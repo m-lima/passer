@@ -10,7 +10,7 @@ COPY wasm .
 RUN wasm-pack build
 
 ## Typescript
-FROM docker.io/node:21.0.0-bookworm-slim as web
+FROM docker.io/node:21.0.0-bookworm as web
 WORKDIR /web
 
 # Dependencies
