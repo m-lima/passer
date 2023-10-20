@@ -1,5 +1,5 @@
 # Build
-FROM rust as rust
+FROM docker.io/rust:1.73.0-bookworm as rust
 WORKDIR /src
 COPY . .
 RUN cargo build --release

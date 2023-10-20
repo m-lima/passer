@@ -1,5 +1,5 @@
 ## Rust
-FROM rust as wasm
+FROM docker.io/rust:1.73.0-bookworm as wasm
 WORKDIR /src
 
 # wasm-pack
@@ -10,7 +10,7 @@ COPY wasm .
 RUN wasm-pack build
 
 ## Typescript
-FROM node as web
+FROM docker.io/node:21.0.0-apline3.18 as web
 WORKDIR /web
 
 # Dependencies
@@ -25,5 +25,5 @@ COPY cfg/Config.standalone.ts src/Config.ts
 RUN yarn build
 
 ## Pack
-FROM alpine
+FROM docker.io/alpine-3.18.4
 COPY --from=web /web/build /web/build
