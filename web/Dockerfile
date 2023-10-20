@@ -25,5 +25,5 @@ COPY cfg/Config.standalone.ts src/Config.ts
 RUN yarn build
 
 ## Pack
-FROM docker.io/alpine-3.18.4
+FROM docker.io/alpine:3.18.4
 COPY --from=web /web/build /web/build
