@@ -10,7 +10,7 @@ COPY wasm .
 RUN wasm-pack build
 
 ## Typescript
-FROM docker.io/node:21.0.0-apline3.18 as web
+FROM docker.io/node:21.0.0-alpine3.18 as web
 WORKDIR /web
 
 # Dependencies
