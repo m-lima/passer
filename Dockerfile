@@ -1,5 +1,5 @@
 ## Wasm
-FROM rust as wasm
+FROM docker.io/rust:1.73.0-bookworm as wasm
 WORKDIR /src
 
 # wasm-pack
@@ -10,7 +10,7 @@ COPY web/wasm .
 RUN wasm-pack build
 
 ## Typescript
-FROM node as web
+FROM docker.io/node:21.0.0-bookworm as web
 WORKDIR /web
 
 # Dependencies
@@ -29,7 +29,7 @@ COPY web/cfg/Config.bundle.ts src/Config.ts
 RUN yarn build
 
 ## Rust
-FROM rust as rust
+FROM docker.io/rust:1.73.0-bookworm as rust
 WORKDIR /src
 
 # Build
@@ -37,7 +37,7 @@ COPY server .
 RUN cargo build --release --features host-frontend
 
 # Pack
-FROM debian:stable-slim
+FROM docker.io/debian:stable-20231009-slim
 COPY --from=rust /src/target/release/passer /usr/bin/passer
 COPY --from=web /web/build /var/www
 EXPOSE 80

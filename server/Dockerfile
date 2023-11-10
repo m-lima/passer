@@ -5,7 +5,7 @@ COPY . .
 RUN cargo build --release
 
 # Pack
-FROM debian:stable-slim
+FROM docker.io/debian:stable-20231009-slim
 COPY --from=rust /src/target/release/passer /usr/bin/passer
 EXPOSE 80
 
