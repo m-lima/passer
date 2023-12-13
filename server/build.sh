@@ -95,11 +95,6 @@ function build {
     shift
   done
 
-  if [ "${autovolumes}" ]; then
-    echo "[33mNot all volumes detected as required were added:[m"
-    echo "${autovolumes}"
-  fi
-
   if [ ${cycle} ]; then
     echo "[34mStopping the service[m"
     systemctl stop "${service_name}"
