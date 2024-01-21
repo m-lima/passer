@@ -56,7 +56,7 @@ function unit {
   if [[ "${pod}" == "podman" ]]; then
     ${pod} generate systemd --name "${service_name}" \
       | sed 's/^Description=.*$/Description=Passer/g' \
-      | sed 's/^WantedBy=.*$/WantedBy=nginx-frontend.service/g'
+      | sed 's/^WantedBy=.*$/WantedBy=nginx.service/g'
   else
     bin=$(which "${pod}")
 
@@ -72,7 +72,7 @@ ExecStart=${bin} start -a ${service_name}
 ExecStop=${bin} stop ${service_name}
 
 [Install]
-WantedBy=nginx-frontend.service
+WantedBy=nginx.service
 EOF
   fi
 
