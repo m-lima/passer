@@ -106,13 +106,13 @@ function build {
   fi
 
   echo "[34mChecking for running instances[m"
-  output=$(${pod} ps --format '{{.ID}} {{.Names}}' | grep "${service_name}")
+  output=$(${pod} ps --format '{{.ID}} {{.Names}}' | grep -w "${service_name}")
   if [ "${output}" ]; then
     ${pod} stop $(cut -d' ' -f1 <<<"${output}")
   fi
 
   echo "[34mChecking for existing containers[m"
-  output=$(${pod} ps -a --format '{{.ID}} {{.Names}}' | grep "${service_name}")
+  output=$(${pod} ps -a --format '{{.ID}} {{.Names}}' | grep -w "${service_name}")
   if [ "${output}" ]; then
     ${pod} rm $(cut -d' ' -f1 <<<"${output}")
   fi
