@@ -138,7 +138,7 @@ impl super::Store for Store {
         let (id, path) = loop {
             let id = Id::new();
             if !self.secrets.contains_key(&id) {
-                let path = self.path.join(&id.encode());
+                let path = self.path.join(id.encode());
                 if !path.exists() {
                     break (id, path);
                 }
