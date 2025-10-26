@@ -1,1 +1,13 @@
-**/.idea
+# All direnvs
+.direnv/
+
+# Sepcific targets
+server/target/
+web/wasm/target/
+
+# Either a symlink or a dir Nix result
+server/result
+web/result
+
+# Any Idea thing
+.idea
