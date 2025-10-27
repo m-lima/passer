@@ -39,55 +39,51 @@ impl From<Error> for JsValue {
 
 #[wasm_bindgen]
 pub struct Key {
-    cipher: aes_gcm::Aes256Gcm,
-    key: [u8; 44],
+    key: [u8; 32],
+    nonce: [u8; 12],
 }
 
 #[wasm_bindgen]
 impl Key {
     #[wasm_bindgen(constructor)]
     pub fn new(key_bytes: &[u8]) -> Result<Key, JsValue> {
-        use aes_gcm::aead::{generic_array::GenericArray, KeyInit};
-
         if key_bytes.len() != 44 {
             return Err(Error::InvalidKey.into_js_value());
         }
 
-        let mut key = [0; 44];
-        key.copy_from_slice(key_bytes);
+        let mut key = [0; 32];
+        key.copy_from_slice(&key_bytes[..32]);
 
-        Ok(Self {
-            cipher: aes_gcm::Aes256Gcm::new(GenericArray::from_slice(&key_bytes[..32])),
-            key,
-        })
+        let mut nonce = [0; 12];
+        nonce.copy_from_slice(&key_bytes[..12]);
+
+        Ok(Self { key, nonce })
     }
 
     #[wasm_bindgen]
-    pub fn from_string(key_str: &str) -> Result<Key, JsValue> {
+    pub fn from_base64(key_str: &str) -> Result<Key, JsValue> {
         Self::new(
-            &base64::decode_config(key_str.as_bytes(), base64::URL_SAFE_NO_PAD)
+            &base64::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, key_str)
                 .map_err(|_| Error::FailedToParseKey.into_js_value())?,
         )
     }
 
     #[wasm_bindgen]
-    pub fn to_string(&self) -> js_sys::JsString {
-        base64::encode_config(&self.key[..], base64::URL_SAFE_NO_PAD).into()
+    pub fn to_base64(&self) -> js_sys::JsString {
+        base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, self.key).into()
     }
 
     fn encrypt(&self, pack: &SerdePack) -> Result<Encrypted, JsValue> {
-        use aes_gcm::aead::{generic_array::GenericArray, Aead};
+        use aes_gcm::aead::Aead;
 
-        let binary =
-            bincode::serialize(&pack).map_err(|_| Error::FailedToProcess.into_js_value())?;
+        let binary = bincode::serde::encode_to_vec(pack, bincode::config::standard())
+            .map_err(|_| Error::FailedToProcess.into_js_value())?;
         let compressed = miniz_oxide::deflate::compress_to_vec(&binary, 8);
+        let cipher = <aes_gcm::Aes256Gcm as aes_gcm::KeyInit>::new(&self.key.into());
 
         Ok(Encrypted(
-            self.cipher
-                .encrypt(
-                    GenericArray::from_slice(&self.key[32..]),
-                    compressed.as_slice(),
-                )
+            cipher
+                .encrypt(&self.nonce.into(), compressed.as_slice())
                 .map_err(|_| Error::FailedToProcess.into_js_value())?,
         ))
     }
@@ -120,16 +116,15 @@ impl Key {
 
     #[wasm_bindgen]
     pub fn decrypt(&self, payload: &[u8]) -> Result<Pack, JsValue> {
-        use aes_gcm::aead::{generic_array::GenericArray, Aead};
+        let cipher = <aes_gcm::Aes256Gcm as aes_gcm::KeyInit>::new(&self.key.into());
 
-        let decrypted = self
-            .cipher
-            .decrypt(GenericArray::from_slice(&self.key[32..]), payload)
+        let decrypted = aes_gcm::aead::Aead::decrypt(&cipher, &self.nonce.into(), payload)
             .map_err(|_| Error::FailedToProcess.into_js_value())?;
         let decompressed = miniz_oxide::inflate::decompress_to_vec(&decrypted)
             .map_err(|_| Error::FailedToProcess.into_js_value())?;
 
-        bincode::deserialize(&decompressed)
+        bincode::serde::decode_from_slice(&decompressed, bincode::config::standard())
+            .map(|(d, _)| d)
             .map(Pack::new)
             .map_err(|_| Error::FailedToProcess.into_js_value())
     }
