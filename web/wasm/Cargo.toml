@@ -8,7 +8,7 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-aes-gcm = "0.10.3"
+aes-gcm-siv = "0.11.1"
 base64 = "0.22"
 bincode = { version = "2.0.1", features = ["serde"] }
 console_error_panic_hook = "0.1.7"
