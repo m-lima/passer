@@ -272,6 +272,10 @@ mod tests {
     struct TempDir(std::path::PathBuf);
 
     impl TempDir {
+        fn new(name: &'static str) -> Self {
+            Self(std::env::temp_dir().join(format!("passer_test_{name}")))
+        }
+
         fn get(&self) -> &std::path::PathBuf {
             &self.0
         }
@@ -305,7 +309,7 @@ mod tests {
         const OLD_FILE_NAME: &str = "old_file__________________________________0";
         let old_id = Id::decode(OLD_FILE_NAME).unwrap();
 
-        let path = TempDir(std::path::PathBuf::from("res/test/store/scan_old"));
+        let path = TempDir::new("accept_old_files");
 
         {
             use std::io::Write;
@@ -332,7 +336,7 @@ mod tests {
         const EXPIRY_FILE_NAME: &str = "expiry_file_______________________________0";
         let expiry_id = Id::decode(EXPIRY_FILE_NAME).unwrap();
 
-        let path = TempDir(std::path::PathBuf::from("res/test/store/expiry"));
+        let path = TempDir::new("expiry");
 
         {
             use std::io::Write;
@@ -356,7 +360,7 @@ mod tests {
 
     #[test]
     fn create_directory() {
-        let path = TempDir(std::path::PathBuf::from("res/test/store/create_directory"));
+        let path = TempDir::new("create_directory");
         assert!(!path.get().exists());
 
         Store::new(path.clone());
@@ -366,7 +370,7 @@ mod tests {
 
     #[test]
     fn put() {
-        let path = TempDir(std::path::PathBuf::from("res/test/store/put"));
+        let path = TempDir::new("put");
 
         let mut store = Store::new(path.clone());
         let data: Vec<u8> = b"test"[..].into();
@@ -387,7 +391,7 @@ mod tests {
 
     #[test]
     fn get() {
-        let path = TempDir(std::path::PathBuf::from("res/test/store/get"));
+        let path = TempDir::new("get");
 
         let mut store = Store::new(path.clone());
         let data: Vec<u8> = b"test"[..].into();
@@ -408,7 +412,7 @@ mod tests {
 
     #[test]
     fn refresh() {
-        let path = TempDir(std::path::PathBuf::from("res/test/store/refresh"));
+        let path = TempDir::new("refresh");
 
         let mut store = Store::new(path.clone());
         let data: Vec<u8> = b"test"[..].into();
@@ -432,7 +436,7 @@ mod tests {
 
     #[test]
     fn size() {
-        let path = TempDir(std::path::PathBuf::from("res/test/store/size"));
+        let path = TempDir::new("size");
 
         let mut store = Store::new(path.clone());
         let data: Vec<u8> = b"test"[..].into();
