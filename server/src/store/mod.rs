@@ -23,12 +23,14 @@ pub struct Id([u8; 32]);
 impl Id {
     fn new() -> Self {
         use rand::Rng;
-        Self(rand::thread_rng().gen())
+        Self(rand::rng().random())
     }
 
     pub fn decode<S: AsRef<str>>(string: S) -> Result<Self, Error> {
         if string.as_ref().len() != 43 {
-            return Err(Error::InvalidId(base64::DecodeError::InvalidLength));
+            return Err(Error::InvalidId(base64::DecodeError::InvalidLength(
+                string.as_ref().len(),
+            )));
         }
 
         // TODO: Over allocating due to bug https://github.com/marshallpierce/rust-base64/pull/227
@@ -43,7 +45,7 @@ impl Id {
         if size == 32 {
             Ok(Self(id))
         } else {
-            Err(Error::InvalidId(base64::DecodeError::InvalidLength))
+            Err(Error::InvalidId(base64::DecodeError::InvalidLength(size)))
         }
     }
 
@@ -99,7 +101,7 @@ mod test {
 
         assert_eq!(
             Id::decode(&id_string[1..]).unwrap_err(),
-            super::Error::InvalidId(base64::DecodeError::InvalidLength)
+            super::Error::InvalidId(base64::DecodeError::InvalidLength(id_string.len() - 1))
         );
     }
 

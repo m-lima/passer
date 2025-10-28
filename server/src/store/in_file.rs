@@ -252,13 +252,13 @@ impl Secret {
 
 impl std::ops::Drop for Secret {
     fn drop(&mut self) {
-        if self.expired() {
-            if let Err(e) = std::fs::remove_file(&self.path) {
-                log::warn!(
-                    "Could not delete untracked secret file {}: {e}",
-                    self.path.display(),
-                );
-            }
+        if self.expired()
+            && let Err(e) = std::fs::remove_file(&self.path)
+        {
+            log::warn!(
+                "Could not delete untracked secret file {}: {e}",
+                self.path.display(),
+            );
         }
     }
 }
@@ -296,12 +296,16 @@ mod tests {
         let store = Store::new(std::path::PathBuf::from("res/test/store/scan"));
 
         assert_eq!(store.secrets.len(), 2);
-        assert!(store
-            .secrets
-            .contains_key(&Id::decode("file_1____________________________________0").unwrap()));
-        assert!(store
-            .secrets
-            .contains_key(&Id::decode("file_2____________________________________0").unwrap()));
+        assert!(
+            store
+                .secrets
+                .contains_key(&Id::decode("file_1____________________________________0").unwrap())
+        );
+        assert!(
+            store
+                .secrets
+                .contains_key(&Id::decode("file_2____________________________________0").unwrap())
+        );
     }
 
     #[test]
