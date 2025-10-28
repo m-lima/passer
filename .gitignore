@@ -2,12 +2,13 @@
 .direnv/
 
 # Sepcific targets
-server/target/
-web/wasm/target/
+/server/target/
+/web/wasm/target/
 
 # Either a symlink or a dir Nix result
-server/result
-web/wasm/result
+/result
+/server/result
+/web/wasm/result
 
 # Any Idea thing
 .idea
