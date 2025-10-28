@@ -66,11 +66,11 @@ impl Store {
                         Some(secret)
                     }
                     Err(InternalError::IO(e)) => {
-                        log::warn!("Ignoring secret: {}", e);
+                        log::warn!("Ignoring secret: {e}");
                         None
                     }
                     Err(e) => {
-                        log::info!("Ignoring secret: {}", e);
+                        log::info!("Ignoring secret: {e}");
                         None
                     }
                 })

@@ -14,7 +14,7 @@ where
 {
     struct IdVisitor;
 
-    impl<'de> serde::de::Visitor<'de> for IdVisitor {
+    impl serde::de::Visitor<'_> for IdVisitor {
         type Value = store::Id;
 
         fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -44,7 +44,7 @@ where
 {
     struct TtlVisitor;
 
-    impl<'de> serde::de::Visitor<'de> for TtlVisitor {
+    impl serde::de::Visitor<'_> for TtlVisitor {
         type Value = std::time::Duration;
 
         fn expecting(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -124,7 +124,7 @@ pub fn get(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handler
         let id = IdExtractor::take_from(&mut state).id;
         let store = middleware::Store::borrow_mut_from(&mut state);
 
-        match store.get(&id).map_err(Error::from) {
+        match store.get(&id) {
             Ok(r) => {
                 let response = r.into_response(&state);
                 Ok((state, response))
@@ -171,14 +171,11 @@ pub fn post(mut state: gotham::state::State) -> std::pin::Pin<Box<gotham::handle
         let expiry = std::time::SystemTime::now() + ttl;
 
         let store = middleware::Store::borrow_mut_from(state);
-        store
-            .put(body.to_vec(), expiry)
-            .map(|key| {
-                let mut response = key.encode().into_response(state);
-                *response.status_mut() = gotham::hyper::StatusCode::CREATED;
-                response
-            })
-            .map_err(Error::from)
+        store.put(body.to_vec(), expiry).map(|key| {
+            let mut response = key.encode().into_response(state);
+            *response.status_mut() = gotham::hyper::StatusCode::CREATED;
+            response
+        })
     }
 
     Box::pin(async {
