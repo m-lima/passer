@@ -48,32 +48,36 @@
           (helper.lib.rust.helper inputs system ./server {
             allowFilesets = [ ./server/res ];
           }).outputs;
-        wasmBase = (
-          helper.lib.rust.helper inputs system ./web/wasm {
-            enableRust190Fix = false;
+        wasmDev =
+          (helper.lib.rust.helper inputs system ./web/wasm {
             binary = false;
             mega = false;
             toolchains = fenixPkgs: [
-              (fenixPkgs.stable.withComponents [
-                "cargo"
-                "clippy"
-                "rustfmt"
-              ])
+              fenixPkgs.stable.toolchain
               fenixPkgs.targets.wasm32-unknown-unknown.stable.rust-std
             ];
-            nativeBuildInputs = pkgs: [
-              pkgs.wasm-pack
-              bindgen
-            ];
-            overrides = {
-              commonArgs = {
-                doCheck = false;
-                CARGO_BUILD_TARGET = "wasm32-unknown-unknown";
-              };
+            nativeBuildInputs = pkgs: [ bindgen ];
+          }).outputs;
+        wasm = helper.lib.rust.helper inputs system ./web/wasm {
+          enableRust190Fix = false;
+          binary = false;
+          mega = false;
+          toolchains = fenixPkgs: [
+            (fenixPkgs.stable.withComponents [
+              "cargo"
+              "clippy"
+              "rustfmt"
+            ])
+            fenixPkgs.targets.wasm32-unknown-unknown.stable.rust-std
+          ];
+          nativeBuildInputs = pkgs: [ bindgen ];
+          overrides = {
+            commonArgs = {
+              doCheck = false;
+              CARGO_BUILD_TARGET = "wasm32-unknown-unknown";
             };
-          }
-        );
-        wasm = wasmBase.outputs;
+          };
+        };
 
         prefixCheck =
           prefix: check:
@@ -110,12 +114,10 @@
       {
         packages = {
           server = server.packages.default;
-          wasm = wasmBase.craneLib.mkCargoDerivation (
-            wasmBase.mainArgs
+          wasm = wasm.craneLib.mkCargoDerivation (
+            wasm.mainArgs
             // {
-              inherit (wasmBase) cargoArtifacts;
-            }
-            // {
+              inherit (wasm) cargoArtifacts;
               buildPhaseCargoCommand = "wasm-bindgen target/wasm32-unknown-unknown/release/passer.wasm --out-dir pkg";
               installPhaseCommand = "cp -r pkg $out";
             }
@@ -126,13 +128,13 @@
           formatting = (treefmt-nix.lib.evalModule pkgs treeFmt).config.build.check self;
         }
         // (prefixCheck "server" server.checks)
-        // (prefixCheck "wasm" wasm.checks);
+        // (prefixCheck "wasm" wasmDev.checks);
 
         formatter = (treefmt-nix.lib.evalModule pkgs treeFmt).config.build.wrapper;
 
         devShells = {
           server = server.devShells.default;
-          wasm = wasm.devShells.default;
+          wasm = wasmDev.devShells.default;
         };
       }
     );
