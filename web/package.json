@@ -1,6 +1,6 @@
 {
   "name": "passer",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "dependencies": {
     "@msgpack/msgpack": "^3.0.0-beta2",
@@ -15,7 +15,7 @@
     "@types/reactstrap": "^8.5.1",
     "bootstrap": "^4.5.2",
     "node-sass": "^9.0.0",
-    "passer": "file:./wasm/pkg",
+    "passer_wasm": "file:./wasm/pkg",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-dropzone": "^14.2.3",

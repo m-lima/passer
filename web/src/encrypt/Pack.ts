@@ -1,4 +1,4 @@
-import * as passer from 'passer'
+import * as passer from 'passer_wasm'
 
 import Alert from '../Alert'
 import * as util from '../Util'
@@ -86,4 +86,4 @@ const extractData = async (pack: Plain) => {
 
 const key = new passer.Key(generateRandom(44))
 
-export const keyString = () => key.to_string()
+export const keyString = () => key.to_base64()

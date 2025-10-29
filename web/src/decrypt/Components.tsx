@@ -3,7 +3,7 @@ import {
   ListGroup,
   ListGroupItem,
 } from 'reactstrap'
-import * as passer from 'passer'
+import * as passer from 'passer_wasm'
 
 import file from '../img/file-solid.svg'
 import text from '../img/file-alt-solid.svg'
@@ -22,7 +22,7 @@ const downloadURL = (data: string, fileName: string) => {
 }
 
 const download = (data: Uint8Array, fileName: string) => {
-  const blob = new Blob([data], {
+  const blob = new Blob([new Uint8Array(data)], {
     type: 'application/octet-stream'
   })
 
@@ -51,7 +51,7 @@ export const InvalidLink = () =>
     Make sure you have the corrent link
   </div>
 
-const result = (pack: passer.Pack, index: number) =>
+const result = (pack: passer.Pack) =>
   pack.plain_message()
     ? <ListGroupItem className='dec-text-block'>
         <Glyph src={text}>{pack.name()}</Glyph>

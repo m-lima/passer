@@ -9,7 +9,7 @@ import {
   ListGroupItem,
 } from 'reactstrap'
 import { useParams } from 'react-router-dom'
-import * as passer from 'passer'
+import * as passer from 'passer_wasm'
 
 import './Decrypt.css'
 

@@ -1,4 +1,4 @@
-import * as passer from 'passer'
+import * as passer from 'passer_wasm'
 import { decode as msgDecode } from '@msgpack/msgpack'
 
 import * as util from '../Util'
@@ -17,7 +17,7 @@ export const decode = (data: ArrayBuffer) => {
 }
 
 export const decrypt = async (key: string, decoded: Decoded) => {
-  return decryptWithKey(passer.Key.from_string(key), decoded)
+  return decryptWithKey(passer.Key.from_base64(key), decoded)
 }
 
 export const decryptWithKey = async (key: passer.Key, decoded: Decoded) => {

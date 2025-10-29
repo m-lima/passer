@@ -1,6 +1,6 @@
 import React, { Dispatch, SetStateAction, useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import * as passer from 'passer'
+import * as passer from 'passer_wasm'
 
 import './Decrypt.css'
 
@@ -40,8 +40,8 @@ const Decrypt = (props: IProps) => {
     }
 
     try {
-      const url = hash.substr(0, 43)
-      const key = passer.Key.from_string(hash.substr(43))
+      const url = hash.substring(0, 43)
+      const key = passer.Key.from_base64(hash.substring(43))
 
       fetch(`${config.API}${url}`, {
         redirect: 'follow',

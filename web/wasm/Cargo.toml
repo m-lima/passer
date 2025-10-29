@@ -1,5 +1,5 @@
 [package]
-name = "passer"
+name = "passer_wasm"
 version = "0.7.1"
 authors = ["Marcelo Lima <marcelowind@gmail.com>"]
 edition = "2024"
