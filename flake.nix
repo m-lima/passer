@@ -58,7 +58,7 @@
             ];
             nativeBuildInputs = pkgs: [ bindgen ];
           }).outputs;
-        wasm = helper.lib.rust.helper inputs system ./web/wasm {
+        wasmBase = helper.lib.rust.helper inputs system ./web/wasm {
           enableRust190Fix = false;
           binary = false;
           mega = false;
@@ -78,6 +78,41 @@
             };
           };
         };
+        wasm =
+          let
+            name = "${wasmBase.mainArtifact.pname}";
+            version = "${wasmBase.mainArtifact.version}";
+          in
+          wasmBase.craneLib.mkCargoDerivation (
+            wasmBase.mainArgs
+            // {
+              cargoArtifacts = wasmBase.mainArtifact;
+              buildPhaseCargoCommand = "wasm-bindgen target/lib/${name}.wasm --out-dir pkg --typescript --target bundler";
+              installPhaseCommand = ''
+                mkdir -p $out
+                cp -r pkg $out/pkg
+                cat > $out/pkg/package.json <<EOF
+                {
+                  "name": "${name}",
+                  "type": "module",
+                  "version": "${version}",
+                  "files": [
+                    "${name}_bg.wasm",
+                    "${name}.js",
+                    "${name}_bg.js",
+                    "${name}.d.ts"
+                  ],
+                  "main": "${name}.js",
+                  "types": "${name}.d.ts",
+                  "sideEffects": [
+                    "./${name}.js",
+                    "./snippets/*"
+                  ]
+                }
+                EOF
+              '';
+            }
+          );
 
         prefixCheck =
           prefix: check:
@@ -114,14 +149,68 @@
       {
         packages = {
           server = server.packages.default;
-          wasm = wasm.craneLib.mkCargoDerivation (
-            wasm.mainArgs
-            // {
-              inherit (wasm) cargoArtifacts;
-              buildPhaseCargoCommand = "wasm-bindgen target/wasm32-unknown-unknown/release/passer.wasm --out-dir pkg";
-              installPhaseCommand = "cp -r pkg $out";
-            }
-          );
+          wasm = wasm;
+          web = pkgs.mkYarnPackage {
+            nodejs = pkgs.nodejs;
+
+            src = pkgs.lib.fileset.toSource {
+              root = ./web;
+              fileset = pkgs.lib.fileset.unions [
+                ./web/package.json
+                ./web/yarn.lock
+                ./web/tsconfig.json
+                ./web/config-overrides.js
+                ./web/src
+                ./web/public
+                ./web/cfg
+              ];
+            };
+
+            nativeBuildInputs = [ pkgs.writableTmpDirAsHomeHook ];
+
+            doDist = false;
+
+            pkgConfig = {
+              node-sass = {
+                buildInputs = [
+                  (pkgs.python3.withPackages (p: [ p.distutils ]))
+                  pkgs.libsass
+                  pkgs.pkg-config
+                ];
+
+                postInstall = ''
+                  LIBSASS_EXT=auto yarn --offline run build
+                  rm build/config.gypi
+                '';
+              };
+            };
+
+            yarnPreBuild = ''
+              echo Copying passer_wasm
+              mkdir -p deps/passer/wasm
+              cp -r ${wasm}/pkg deps/passer/wasm/pkg
+              chmod +w deps/passer/wasm/pkg
+
+              echo Preparing node_sass
+              mkdir -p $HOME/.node-gyp/${pkgs.nodejs.version}
+              echo 9 > $HOME/.node-gyp/${pkgs.nodejs.version}/installVersion
+              ln -sfv ${pkgs.nodejs}/include $HOME/.node-gyp/${pkgs.nodejs.version}
+              export npm_config_nodedir=${pkgs.nodejs}
+            '';
+
+            configurePhase = ''
+              cp cfg/Config.standalone.ts src/Config.ts
+              cp -r $node_modules node_modules
+              chmod +w node_modules
+            '';
+
+            buildPhase = ''
+              runHook preBuild
+              cat package.json
+              yarn --offline build
+              runHook postBuild
+            '';
+          };
         };
 
         checks = {
@@ -135,6 +224,12 @@
         devShells = {
           server = server.devShells.default;
           wasm = wasmDev.devShells.default;
+          web = pkgs.mkShell {
+            buildInputs = [
+              pkgs.yarn
+              (pkgs.python3.withPackages (p: [ p.distutils ]))
+            ];
+          };
         };
       }
     );
