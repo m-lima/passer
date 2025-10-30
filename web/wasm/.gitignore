@@ -1,0 +1,9 @@
+# Rust
+/target
+
+# Nix
+/result
+
+# Wasm
+/pkg/
+

@@ -1,14 +1,5 @@
 # All direnvs
 .direnv/
 
-# Sepcific targets
-/server/target/
-/web/wasm/target/
-
-# Either a symlink or a dir Nix result
-/result
-/server/result
-/web/wasm/result
-
 # Any Idea thing
 .idea
