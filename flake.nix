@@ -125,6 +125,7 @@
           projectRootFile = "flake.nix";
           programs = {
             nixfmt.enable = true;
+            beautysh.enable = true;
             rustfmt = {
               enable = true;
               edition = "2024";
@@ -135,13 +136,24 @@
           settings = {
             on-unmatched = "warn";
             excludes = [
+              "**/.direnv/*"
+              "**/.dockerignore"
+              "**/.envrc"
+              "**/.gitignore"
+              "*.ico"
               "*.lock"
+              "*.png"
               ".direnv/*"
+              ".dockerignore"
               ".envrc"
               ".gitignore"
-              "result*/*"
-              "target/*"
               "LICENSE"
+              "result*/*"
+              "server/res/*"
+              "target/*"
+              "web/.direnv/*"
+              "web/.envrc"
+              "web/public/robots.txt"
             ];
           };
         };
