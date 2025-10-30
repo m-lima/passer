@@ -35,7 +35,8 @@ if [ "${1}" ]; then
   fi
 fi
 
-${pod} build -t volume-updater .
+cd $(dirname "${0}")/..
+${pod} build -t volume-updater -f Dockerfile.web .
 ${pod} run \
   --volume "${service_name}":/data \
   --rm \

@@ -1,7 +1,7 @@
 # Build
-FROM docker.io/rust:1.73.0-bookworm as rust
+FROM docker.io/rust:1.90.0-bookworm as rust
 WORKDIR /src
-COPY . .
+COPY server .
 RUN cargo build --release
 
 # Pack

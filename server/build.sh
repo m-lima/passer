@@ -101,7 +101,7 @@ function build {
   fi
 
   echo "[34mBuilding the image[m"
-  if ! ${pod} build -t "${service_name}" "${base}"; then
+  if ! ${pod} build -t "${service_name}" -f "${base}/../Dockerfile.server" "${base}"; then
     exit 1
   fi
 
@@ -139,6 +139,7 @@ for p in ${@}; do
   fi
 done
 
+cd $(dirname "${0}")/..
 if [[ "${1}" == "unit" ]]; then
   shift
   unit ${@}

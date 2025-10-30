@@ -1,20 +1,20 @@
 ## Wasm
-FROM docker.io/rust:1.73.0-bookworm as wasm
+FROM docker.io/rust:1.90.0-bookworm as wasm
 WORKDIR /src
 
 # wasm-pack
 RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
 # Build
-COPY web/wasm .
+COPY wasm .
 RUN wasm-pack build
 
 ## Typescript
-FROM docker.io/node:21.0.0-bookworm as web
+FROM docker.io/node:22.0.0-bookworm as web
 WORKDIR /web
 
 # Dependencies
-COPY --from=wasm /src/pkg wasm/pkg
+COPY --from=wasm /src/pkg wasm
 COPY web/package.json \
      web/yarn.lock \
      web/tsconfig.json \
@@ -29,7 +29,7 @@ COPY web/cfg/Config.bundle.ts src/Config.ts
 RUN yarn build
 
 ## Rust
-FROM docker.io/rust:1.73.0-bookworm as rust
+FROM docker.io/rust:1.90.0-bookworm as rust
 WORKDIR /src
 
 # Build

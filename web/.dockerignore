@@ -1,6 +1,0 @@
-node_modules
-build
-build.sh
-wasm/target
-wasm/pkg
-wasm/Cargo.lock
