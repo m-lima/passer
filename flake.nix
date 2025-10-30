@@ -198,17 +198,28 @@
               export npm_config_nodedir=${pkgs.nodejs}
             '';
 
-            configurePhase = ''
+            patchPhase = ''
               cp cfg/Config.standalone.ts src/Config.ts
+            '';
+
+            configurePhase = ''
               cp -r $node_modules node_modules
               chmod +w node_modules
+              rm node_modules/passer_wasm
+              mkdir node_modules/passer_wasm
+              cp $node_modules/passer_wasm/* node_modules/passer_wasm/.
             '';
 
             buildPhase = ''
               runHook preBuild
-              cat package.json
               yarn --offline build
               runHook postBuild
+            '';
+
+            installPhase = ''
+              runHook preInstall
+              mv build $out
+              runHook postInstall
             '';
           };
         };

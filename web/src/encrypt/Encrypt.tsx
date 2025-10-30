@@ -160,7 +160,7 @@ const Encrypt = (props: IProps) => {
     fetch(`${config.API}?ttl=${ttlToQuery(ttl)}`, {
       method: 'POST',
       redirect: 'follow',
-      body: encode(packs.map(p => p.data.payload())),
+      body: new Uint8Array(encode(packs.map(p => p.data.payload()))),
     })
     .then(response => {
       if (response.ok) {
