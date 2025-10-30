@@ -22,7 +22,5 @@
   "display": "standalone",
   "theme_color": "#cccccc",
   "background_color": "#eeeeee",
-  "permissions": [
-    "clipboardWrite"
-  ]
+  "permissions": ["clipboardWrite"]
 }

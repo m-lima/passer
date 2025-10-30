@@ -24,7 +24,9 @@
   outline: none;
 }
 
-.enc-input-button:active, .enc-input-button:hover, .enc-input-button#active {
+.enc-input-button:active,
+.enc-input-button:hover,
+.enc-input-button#active {
   color: var(--info);
 }
 

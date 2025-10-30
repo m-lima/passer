@@ -3,13 +3,15 @@
   align-self: center;
 }
 
-.glyph svg, .glyph img {
+.glyph svg,
+.glyph img {
   height: 1em;
   width: 1em;
   fill: currentColor;
 }
 
-.glyph.baseline svg, .glyph img {
-  top: -.125em;
+.glyph.baseline svg,
+.glyph img {
+  top: -0.125em;
   position: relative;
 }

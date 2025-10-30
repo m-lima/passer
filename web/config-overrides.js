@@ -8,11 +8,11 @@ module.exports = config => {
 
   config.module.rules.forEach(rule => {
     (rule.oneOf || []).forEach(oneOf => {
-      if (oneOf.type === "asset/resource") {
-        oneOf.exclude.push(wasmExtensionRegExp)
+      if (oneOf.type === 'asset/resource') {
+        oneOf.exclude.push(wasmExtensionRegExp);
       }
-    })
-  })
+    });
+  });
 
-  return config
-}
+  return config;
+};

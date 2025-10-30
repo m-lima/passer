@@ -1,8 +1,8 @@
-import './index.scss'
+import './index.scss';
 
-import React from 'react'
-import { createRoot } from 'react-dom/client'
-import * as serviceWorker from './serviceWorker'
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import * as serviceWorker from './serviceWorker';
 
 import('./App')
   .then(app => app.default)
@@ -10,10 +10,11 @@ import('./App')
     createRoot(document.getElementById('root')!).render(
       <React.StrictMode>
         <App />
-      </React.StrictMode>)
+      </React.StrictMode>,
+    );
 
     // If you want your app to work offline and load faster, you can change
     // unregister() to register() below. Note this comes with some pitfalls.
     // Learn more about service workers: https://bit.ly/CRA-PWA
-    serviceWorker.unregister()
-  })
+    serviceWorker.unregister();
+  });

@@ -131,13 +131,14 @@
               edition = "2024";
             };
             taplo.enable = true;
-            yamlfmt.enable = true;
+            xmllint.enable = true;
+            prettier.enable = true;
           };
           settings = {
+            prettier = builtins.fromJSON (builtins.readFile ./web/.prettierrc.json);
             on-unmatched = "warn";
             excludes = [
               "**/.direnv/*"
-              "**/.dockerignore"
               "**/.envrc"
               "**/.gitignore"
               "*.ico"
@@ -147,6 +148,7 @@
               ".dockerignore"
               ".envrc"
               ".gitignore"
+              "Dockerfile*"
               "LICENSE"
               "result*/*"
               "server/res/*"

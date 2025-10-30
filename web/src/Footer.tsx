@@ -1,13 +1,12 @@
-import React, { FunctionComponent, PropsWithChildren } from 'react'
+import React, { FunctionComponent, PropsWithChildren } from 'react';
 
-import './Footer.scss'
+import './Footer.scss';
 
-const Footer: FunctionComponent<PropsWithChildren> = (props) =>
+const Footer: FunctionComponent<PropsWithChildren> = props => (
   <>
     <div className='footer-spacer' />
-    <footer className='footer'>
-      {props.children}
-    </footer>
+    <footer className='footer'>{props.children}</footer>
   </>
+);
 
-export default Footer
+export default Footer;

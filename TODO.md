@@ -1,9 +1,11 @@
 # To Do
 
 ## All
+
 [ ] Make a self-contained deployable package
 
 ## Server
+
 [ ] Make HashMap key typed (intesad of String)
 [ ] Accept TTL
 [ ] Avoid deleting if key does not match
@@ -13,6 +15,7 @@
 [X] Store files in filesytem
 
 ## Web
+
 [ ] Accpet TTL
 [ ] Support keypairs
 [ ] Warn before leaving if content is waiting for upload

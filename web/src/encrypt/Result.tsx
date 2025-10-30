@@ -1,49 +1,44 @@
-import React, { useRef } from 'react'
-import {
-  Button,
-  Input,
-  InputGroup,
-  InputGroupAddon,
-} from 'reactstrap'
+import React, { useRef } from 'react';
+import { Button, Input, InputGroup, InputGroupAddon } from 'reactstrap';
 
-import './Result.css'
+import './Result.css';
 
-import { ReactComponent as copy } from '../img/copy-solid.svg'
-import { ReactComponent as url } from '../img/link-solid.svg'
-import { ReactComponent as key } from '../img/key-solid.svg'
+import { ReactComponent as copy } from '../img/copy-solid.svg';
+import { ReactComponent as url } from '../img/link-solid.svg';
+import { ReactComponent as key } from '../img/key-solid.svg';
 
-import * as config from '../Config'
-import Glyph from '../Glyph'
+import * as config from '../Config';
+import Glyph from '../Glyph';
 
 interface IProps {
-  url: string
-  keyString: string
+  url: string;
+  keyString: string;
 }
 
 const Result = (props: IProps) => {
-  const singleRef = useRef<HTMLInputElement>(null)
+  const singleRef = useRef<HTMLInputElement>(null);
   const copySingle = () => {
     if (singleRef && singleRef.current) {
-      singleRef.current.select()
-      document.execCommand('copy')
+      singleRef.current.select();
+      document.execCommand('copy');
     }
-  }
+  };
 
-  const urlRef = useRef<HTMLInputElement>(null)
+  const urlRef = useRef<HTMLInputElement>(null);
   const copyUrl = () => {
     if (urlRef && urlRef.current) {
-      urlRef.current.select()
-      document.execCommand('copy')
+      urlRef.current.select();
+      document.execCommand('copy');
     }
-  }
+  };
 
-  const keyRef = useRef<HTMLInputElement>(null)
+  const keyRef = useRef<HTMLInputElement>(null);
   const copyKey = () => {
     if (keyRef && keyRef.current) {
-      keyRef.current.select()
-      document.execCommand('copy')
+      keyRef.current.select();
+      document.execCommand('copy');
     }
-  }
+  };
 
   return (
     <>
@@ -55,7 +50,12 @@ const Result = (props: IProps) => {
               <Glyph src={copy} />
             </Button>
           </InputGroupAddon>
-          <Input innerRef={singleRef} type='text' readOnly value={window.location.origin + config.Path.DECRYPT_QUICK + props.url + props.keyString} />
+          <Input
+            innerRef={singleRef}
+            type='text'
+            readOnly
+            value={window.location.origin + config.Path.DECRYPT_QUICK + props.url + props.keyString}
+          />
         </InputGroup>
       </div>
 
@@ -67,7 +67,12 @@ const Result = (props: IProps) => {
               <Glyph src={url} />
             </Button>
           </InputGroupAddon>
-          <Input innerRef={urlRef} type='text' readOnly value={window.location.origin + config.Path.DECRYPT_STEPPED + props.url} />
+          <Input
+            innerRef={urlRef}
+            type='text'
+            readOnly
+            value={window.location.origin + config.Path.DECRYPT_STEPPED + props.url}
+          />
         </InputGroup>
       </div>
 
@@ -82,7 +87,7 @@ const Result = (props: IProps) => {
         </InputGroup>
       </div>
     </>
-  )
-}
+  );
+};
 
-export default Result
+export default Result;
