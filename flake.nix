@@ -49,7 +49,7 @@
             allowFilesets = [ ./server/res ];
           }).outputs;
         wasmDev =
-          (helper.lib.rust.helper inputs system ./web/wasm {
+          (helper.lib.rust.helper inputs system ./wasm {
             binary = false;
             mega = false;
             toolchains = fenixPkgs: [
@@ -58,7 +58,7 @@
             ];
             nativeBuildInputs = pkgs: [ bindgen ];
           }).outputs;
-        wasmBase = helper.lib.rust.helper inputs system ./web/wasm {
+        wasmBase = helper.lib.rust.helper inputs system ./wasm {
           enableRust190Fix = false;
           binary = false;
           mega = false;
@@ -200,7 +200,7 @@
             };
 
             yarnPreBuild = ''
-              mkdir -p deps/passer/wasm
+              mkdir -p deps/passer
               cp -r ${wasm}/pkg deps/passer/wasm
               chmod +w deps/passer/wasm
 
