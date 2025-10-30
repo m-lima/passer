@@ -6,7 +6,7 @@ WORKDIR /src
 RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
 # Build
-COPY wasm .
+COPY ../wasm .
 RUN wasm-pack build
 
 ## Typescript
@@ -14,7 +14,7 @@ FROM docker.io/node:21.0.0-bookworm as web
 WORKDIR /web
 
 # Dependencies
-COPY --from=wasm /src/pkg wasm/pkg
+COPY --from=wasm /src/pkg wasm
 COPY package.json yarn.lock tsconfig.json config-overrides.js ./
 RUN yarn install
 

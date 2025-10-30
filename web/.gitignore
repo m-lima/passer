@@ -24,3 +24,6 @@ yarn-error.log*
 
 # Nix
 /result
+
+# Wasm package
+/wasm/

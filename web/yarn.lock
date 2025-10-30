@@ -7848,7 +7848,7 @@ pascal-case@^3.1.2:
     no-case "^3.0.4"
     tslib "^2.0.3"
 
-"passer_wasm@file:./wasm/pkg":
+"passer_wasm@file:./wasm":
   version "0.7.1"
 
 path-exists@^3.0.0:

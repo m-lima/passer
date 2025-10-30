@@ -198,12 +198,10 @@
             };
 
             yarnPreBuild = ''
-              echo Copying passer_wasm
               mkdir -p deps/passer/wasm
-              cp -r ${wasm}/pkg deps/passer/wasm/pkg
-              chmod +w deps/passer/wasm/pkg
+              cp -r ${wasm}/pkg deps/passer/wasm
+              chmod +w deps/passer/wasm
 
-              echo Preparing node_sass
               mkdir -p $HOME/.node-gyp/${pkgs.nodejs.version}
               echo 9 > $HOME/.node-gyp/${pkgs.nodejs.version}/installVersion
               ln -sfv ${pkgs.nodejs}/include $HOME/.node-gyp/${pkgs.nodejs.version}
