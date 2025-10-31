@@ -211,7 +211,7 @@
             '';
 
             patchPhase = ''
-              cp cfg/Config.standalone.ts src/Config.ts
+              cp cfg/Config.bundle.ts src/Config.ts
             '';
 
             configurePhase = ''
