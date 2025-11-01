@@ -70,7 +70,10 @@ impl Key {
 
     #[wasm_bindgen]
     pub fn to_base64(&self) -> js_sys::JsString {
-        base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, self.key).into()
+        let mut key_bytes = [0; 44];
+        key_bytes[..32].copy_from_slice(&self.key);
+        key_bytes[32..].copy_from_slice(&self.nonce);
+        base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, key_bytes).into()
     }
 
     fn encrypt(&self, pack: &SerdePack) -> Result<Encrypted, JsValue> {
