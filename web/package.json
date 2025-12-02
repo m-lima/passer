@@ -1,6 +1,6 @@
 {
   "name": "passer",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "dependencies": {
     "@msgpack/msgpack": "^3.0.0-beta2",

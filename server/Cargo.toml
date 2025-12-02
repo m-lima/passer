@@ -1,16 +1,16 @@
 [package]
 name = "passer"
-version = "0.7.1"
+version = "0.7.2"
 authors = ["Marcelo Lima <marcelowind@gmail.com>"]
 edition = "2024"
 
 [dependencies]
 base64 = "0.22.1"
-clap = { version = "4.4.6", features = ["derive"] }
+clap = { version = "4.5.53", features = ["derive"] }
 colored = "3.0.0"
 gotham = "0.7.2"
 gotham_derive = "0.7.1"
-log = "0.4.20"
+log = "0.4.29"
 rand = "0.9.2"
 serde = { version = "1.0.189", features = ["derive"] }
 simplelog = "0.12.1"
