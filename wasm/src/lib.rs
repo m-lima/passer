@@ -3,7 +3,7 @@
 // Allowed because it is wasm
 #![allow(clippy::must_use_candidate)]
 
-//! Provides encryption using AES-GCM in wasm
+//! Provides encryption using Chacha20-Poly1305 in wasm
 //!
 //! # Typical flow:
 //! ## Encryption
@@ -77,12 +77,14 @@ impl Key {
     }
 
     fn encrypt(&self, pack: &SerdePack) -> Result<Encrypted, JsValue> {
-        use aes_gcm_siv::aead::Aead;
+        use chacha20poly1305::aead::Aead;
 
         let binary = bincode::serde::encode_to_vec(pack, bincode::config::standard())
             .map_err(|_| Error::FailedToProcess.into_js_value())?;
         let compressed = miniz_oxide::deflate::compress_to_vec(&binary, 8);
-        let cipher = <aes_gcm_siv::Aes256GcmSiv as aes_gcm_siv::KeyInit>::new(&self.key.into());
+        let cipher = <chacha20poly1305::ChaCha20Poly1305 as chacha20poly1305::KeyInit>::new(
+            &self.key.into(),
+        );
 
         Ok(Encrypted(
             cipher
@@ -119,9 +121,11 @@ impl Key {
 
     #[wasm_bindgen]
     pub fn decrypt(&self, payload: &[u8]) -> Result<Pack, JsValue> {
-        let cipher = <aes_gcm_siv::Aes256GcmSiv as aes_gcm_siv::KeyInit>::new(&self.key.into());
+        let cipher = <chacha20poly1305::ChaCha20Poly1305 as chacha20poly1305::KeyInit>::new(
+            &self.key.into(),
+        );
 
-        let decrypted = aes_gcm_siv::aead::Aead::decrypt(&cipher, &self.nonce.into(), payload)
+        let decrypted = chacha20poly1305::aead::Aead::decrypt(&cipher, &self.nonce.into(), payload)
             .map_err(|_| Error::FailedToProcess.into_js_value())?;
         let decompressed = miniz_oxide::inflate::decompress_to_vec(&decrypted)
             .map_err(|_| Error::FailedToProcess.into_js_value())?;

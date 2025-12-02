@@ -8,9 +8,9 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-aes-gcm-siv = "0.11.1"
 base64 = "0.22"
 bincode = { version = "2.0.1", features = ["serde"] }
+chacha20poly1305 = "0.10.1"
 console_error_panic_hook = "0.1.7"
 # Must match what aes-gcm-siv brings in
 getrandom = { version = "*", features = ["js"] }

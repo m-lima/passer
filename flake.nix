@@ -59,7 +59,6 @@
             nativeBuildInputs = pkgs: [ bindgen ];
           }).outputs;
         wasmBase = helper.lib.rust.helper inputs system ./wasm {
-          enableRust190Fix = false;
           binary = false;
           mega = false;
           toolchains = fenixPkgs: [
