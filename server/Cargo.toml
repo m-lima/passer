@@ -1,13 +1,13 @@
 [package]
 name = "passer"
-version = "0.7.2"
+version = "0.7.3"
 authors = ["Marcelo Lima <marcelowind@gmail.com>"]
 edition = "2024"
 
 [dependencies]
 base64 = "0.22.1"
-clap = { version = "4.5.53", features = ["derive"] }
-colored = "3.0.0"
+clap = { version = "4.5.54", features = ["derive"] }
+colored = "3.1.1"
 gotham = "0.7.2"
 gotham_derive = "0.7.1"
 log = "0.4.29"
@@ -15,8 +15,8 @@ rand = "0.9.2"
 serde = { version = "1.0.189", features = ["derive"] }
 simplelog = "0.12.1"
 thiserror = "2.0.17"
-time = { version = "0.3.30", default-features = false }
-tokio = "1.33.0"
+time = { version = "0.3.45", default-features = false }
+tokio = "1.49.0"
 
 [dev-dependencies]
 mime = "0.3.17"
