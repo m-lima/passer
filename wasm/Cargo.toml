@@ -1,6 +1,6 @@
 [package]
 name = "passer_wasm"
-version = "0.7.2"
+version = "0.7.3"
 authors = ["Marcelo Lima <marcelowind@gmail.com>"]
 edition = "2024"
 
@@ -9,12 +9,12 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 base64 = "0.22"
-bincode = { version = "2.0.1", features = ["serde"] }
 chacha20poly1305 = "0.10.1"
-console_error_panic_hook = "0.1.7"
 # Must match what aes-gcm-siv brings in
 getrandom = { version = "*", features = ["js"] }
-js-sys = "0.3.83"
-miniz_oxide = "0.8.9"
-serde = { version = "1.0.189", features = ["derive"] }
-wasm-bindgen = "0.2.106"
+miniz_oxide = "0.9.0"
+wasm-bindgen = "0.2.108"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.7"
+js-sys = "0.3.85"
