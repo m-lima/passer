@@ -195,22 +195,22 @@ mod tests {
         {
             let ttl = "1m";
             let duration = convert_str_to_duration(ttl).unwrap();
-            assert_eq!(duration, std::time::Duration::from_secs(60));
+            assert_eq!(duration, std::time::Duration::from_mins(1));
         }
         {
             let ttl = "00009999m";
             let duration = convert_str_to_duration(ttl).unwrap();
-            assert_eq!(duration, std::time::Duration::from_secs(9999 * 60));
+            assert_eq!(duration, std::time::Duration::from_mins(9999));
         }
         {
             let ttl = "2h";
             let duration = convert_str_to_duration(ttl).unwrap();
-            assert_eq!(duration, std::time::Duration::from_secs(7200));
+            assert_eq!(duration, std::time::Duration::from_hours(2));
         }
         {
             let ttl = "7d";
             let duration = convert_str_to_duration(ttl).unwrap();
-            assert_eq!(duration, std::time::Duration::from_secs(7 * 24 * 60 * 60));
+            assert_eq!(duration, std::time::Duration::from_hours(7 * 24));
         }
     }
 

@@ -52,8 +52,7 @@
           (helper.lib.rust.helper inputs system ./wasm {
             binary = false;
             mega = false;
-            toolchains = fenixPkgs: [
-              fenixPkgs.stable.defaultToolchain
+            extraToolchains = fenixPkgs: [
               fenixPkgs.targets.wasm32-unknown-unknown.stable.rust-std
             ];
             nativeBuildInputs = pkgs: [ bindgen ];
@@ -61,12 +60,7 @@
         wasmBase = helper.lib.rust.helper inputs system ./wasm {
           binary = false;
           mega = false;
-          toolchains = fenixPkgs: [
-            (fenixPkgs.stable.withComponents [
-              "cargo"
-              "clippy"
-              "rustfmt"
-            ])
+          extraToolchains = fenixPkgs: [
             fenixPkgs.targets.wasm32-unknown-unknown.stable.rust-std
           ];
           nativeBuildInputs = pkgs: [ bindgen ];

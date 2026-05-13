@@ -60,8 +60,7 @@ impl Store {
                                 .1
                                 .expiry
                                 .duration_since(std::time::SystemTime::now())
-                                .map(|d| d.as_secs())
-                                .unwrap_or(0)
+                                .map_or(0, |d| d.as_secs())
                         );
                         Some(secret)
                     }
