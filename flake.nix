@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     crane.url = "github:ipetkov/crane";
     fenix = {
       url = "github:nix-community/fenix";
@@ -107,6 +107,58 @@
             }
           );
 
+        commonWeb =
+          let
+            package = builtins.fromJSON (builtins.readFile ./web/package.json);
+          in
+          {
+            pname = package.name;
+            version = package.version;
+
+            nativeBuildInputs = [
+              pkgs.nodejs
+              pkgs.yarnConfigHook
+              pkgs.yarnBuildHook
+            ];
+
+            src = pkgs.lib.fileset.toSource {
+              root = ./web;
+              fileset = pkgs.lib.fileset.unions [
+                ./web/package.json
+                ./web/yarn.lock
+                ./web/tsconfig.json
+                ./web/config-overrides.js
+                ./web/src
+                ./web/public
+                ./web/cfg
+              ];
+            };
+
+            offlineCache = pkgs.fetchYarnDeps {
+              yarnLock = ./web/yarn.lock;
+              hash = "sha256-BBLxRvLTCelHnbWPLe0pFA4B1mprgVsP3ebVuRsVh4c=";
+            };
+
+            doCheck = false;
+
+            patchPhase = ''
+              cp cfg/Config.bundle.ts src/Config.ts
+              cp -a ${wasm}/pkg ./wasm
+            '';
+
+          };
+        webChecks = {
+          lint = pkgs.stdenvNoCC.mkDerivation (
+            commonWeb
+            // {
+              doCheck = true;
+              dontBuild = true;
+
+              installPhase = "mkdir -p $out";
+            }
+          );
+        };
+
         prefixCheck =
           prefix: check:
           pkgs.lib.mapAttrs' (key: value: {
@@ -157,83 +209,24 @@
         packages = {
           server = server.packages.default;
           wasm = wasm;
-          web = pkgs.mkYarnPackage {
-            nodejs = pkgs.nodejs;
-
-            src = pkgs.lib.fileset.toSource {
-              root = ./web;
-              fileset = pkgs.lib.fileset.unions [
-                ./web/package.json
-                ./web/yarn.lock
-                ./web/tsconfig.json
-                ./web/config-overrides.js
-                ./web/src
-                ./web/public
-                ./web/cfg
-              ];
-            };
-
-            nativeBuildInputs = [ pkgs.writableTmpDirAsHomeHook ];
-
-            doDist = false;
-
-            pkgConfig = {
-              node-sass = {
-                buildInputs = [
-                  (pkgs.python3.withPackages (p: [ p.distutils ]))
-                  pkgs.libsass
-                  pkgs.pkg-config
-                ];
-
-                postInstall = ''
-                  LIBSASS_EXT=auto yarn --offline run build
-                  rm build/config.gypi
-                '';
-              };
-            };
-
-            yarnPreBuild = ''
-              mkdir -p deps/passer
-              cp -r ${wasm}/pkg deps/passer/wasm
-              chmod +w deps/passer/wasm
-
-              mkdir -p $HOME/.node-gyp/${pkgs.nodejs.version}
-              echo 9 > $HOME/.node-gyp/${pkgs.nodejs.version}/installVersion
-              ln -sfv ${pkgs.nodejs}/include $HOME/.node-gyp/${pkgs.nodejs.version}
-              export npm_config_nodedir=${pkgs.nodejs}
-            '';
-
-            patchPhase = ''
-              cp cfg/Config.bundle.ts src/Config.ts
-            '';
-
-            configurePhase = ''
-              cp -r $node_modules node_modules
-              chmod +w node_modules
-              rm node_modules/passer_wasm
-              mkdir node_modules/passer_wasm
-              cp $node_modules/passer_wasm/* node_modules/passer_wasm/.
-            '';
-
-            buildPhase = ''
-              runHook preBuild
-              yarn --offline build
-              runHook postBuild
-            '';
-
-            installPhase = ''
-              runHook preInstall
-              mv build $out
-              runHook postInstall
-            '';
-          };
+          web = pkgs.stdenvNoCC.mkDerivation (
+            commonWeb
+            // {
+              installPhase = ''
+                runHook preInstall
+                mv build $out
+                runHook postInstall
+              '';
+            }
+          );
         };
 
         checks = {
           formatting = (treefmt-nix.lib.evalModule pkgs treeFmt).config.build.check self;
         }
         // (prefixCheck "server" server.checks)
-        // (prefixCheck "wasm" wasmDev.checks);
+        // (prefixCheck "wasm" wasmDev.checks)
+        // (prefixCheck "web" webChecks);
 
         formatter = (treefmt-nix.lib.evalModule pkgs treeFmt).config.build.wrapper;
 
